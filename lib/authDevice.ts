@@ -18,11 +18,10 @@ export async function verifyDevice(req: Request) {
   const deviceKey = req.headers.get("x-device-key") || "";
   if (!deviceId || !deviceKey) return { ok: false as const, deviceId: "" };
 
-  const { rows } = await sql`
-    select device_key_hash from devices
-    where device_id = ${deviceId}
-    limit 1
-  `;
+  const rows = await sql<{ device_key_hash: string }>(
+    "select device_key_hash from devices where device_id = $1 limit 1",
+    [deviceId]
+  );
 
   if (!rows.length) return { ok: false as const, deviceId: "" };
 
