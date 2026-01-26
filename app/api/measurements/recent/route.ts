@@ -1,26 +1,27 @@
-import { NextResponse } from "next/server";
 import { sql } from "@vercel/postgres";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
 
-  const device_id = searchParams.get("device_id") || "pi-001";
-  const limit = Math.min(
-    500,
-    Math.max(1, Number(searchParams.get("limit") || 200))
-  );
+  const device_id = searchParams.get("device_id") || "";
+  const limit = Math.min(Math.max(Number(searchParams.get("limit") || "50"), 1), 200);
 
-  const { rows } = await sql`
-    select device_id, ts_utc, url, dns_ms, http_ms, http_err
-    from measurements
-    where device_id = ${device_id}
-    order by ts_utc desc
-    limit ${limit}
+  if (!device_id) {
+    return NextResponse.json({ ok: false, error: "device_id is required" }, { status: 400 });
+  }
+
+  const result = await sql`
+    SELECT device_id, ts_utc, url, dns_ms, http_ms, http_err
+    FROM measurements
+    WHERE device_id = ${device_id}
+    ORDER BY ts_utc DESC
+    LIMIT ${limit};
   `;
 
-  rows.reverse();
+  const rows = result.rows ?? [];
 
   return NextResponse.json({
     ok: true,
@@ -28,4 +29,5 @@ export async function GET(req: Request) {
     count: rows.length,
     rows,
     build_tag: "a7c6ef8",
-});
+  });
+}
