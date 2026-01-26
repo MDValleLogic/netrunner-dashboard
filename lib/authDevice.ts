@@ -23,10 +23,16 @@ export async function verifyDevice(req: Request) {
     [deviceId]
   );
 
-  if (!rows.length) return { ok: false as const, deviceId: "" };
+const first =
+  Array.isArray(rows)
+    ? rows[0]
+    : Array.isArray((rows as any).rows)
+    ? (rows as any).rows[0]
+    : null;
 
-  return {
-    ok: rows[0].device_key_hash === sha256(deviceKey),
-    deviceId,
-  };
-}
+if (!first) return { ok: false as const, deviceId: "" };
+
+return {
+  ok: first.device_key_hash === sha256(deviceKey),
+  deviceId,
+};
