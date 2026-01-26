@@ -1,6 +1,7 @@
 import { sql } from "@vercel/postgres";
 import { NextResponse } from "next/server";
 
+// Vercel wants an explicit node runtime version
 export const runtime = "nodejs20.x";
 
 /**
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
     if (result.rows.length === 0) {
       return NextResponse.json({
         ok: true,
-        version: "dc-v3",
+        version: "dc-v4",
         config: {
           device_id,
           urls: [],
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      version: "dc-v3",
+      version: "dc-v4",
       config: {
         device_id: row.device_id,
         urls: row.urls ?? [],
@@ -108,7 +109,7 @@ export async function POST(req: Request) {
         updated_at = NOW();
     `;
 
-    return NextResponse.json({ ok: true, version: "dc-v3" });
+    return NextResponse.json({ ok: true, version: "dc-v4" });
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || String(e) },
