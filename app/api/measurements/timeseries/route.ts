@@ -1,4 +1,3 @@
-ø
 import { sql } from "@vercel/postgres";
 
 export const runtime = "nodejs";
@@ -15,9 +14,12 @@ export async function GET(req: Request) {
 
   // allow repeated urls=... OR urls comma-separated
   const urls_multi = searchParams.getAll("urls");
-  const urls_csv = (searchParams.get("urls") || "").split(",").map(s => s.trim()).filter(Boolean);
-  const urls = Array.from(new Set([...urls_multi, ...urls_csv])).filter(Boolean);
+  const urls_csv = (searchParams.get("urls") || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
+  const urls = Array.from(new Set([...urls_multi, ...urls_csv])).filter(Boolean);
   const since_minutes = Number(since_minutes_str);
 
   if (!device_id) return bad("device_id is required");
@@ -28,12 +30,11 @@ export async function GET(req: Request) {
   if (urls.length > 5) return bad("Max 5 urls (MVP limit)");
 
   try {
-    // Pull raw points for the selected urls in time window
+    // MVP-safe query: device + time window (filter urls in JS)
     const rows = await sql`
       SELECT device_id, ts_utc, url, dns_ms, http_ms, http_err
       FROM measurements
       WHERE device_id = ${device_id}
-        AND url = ANY(${urls})
         AND ts_utc >= NOW() - (${since_minutes}::int * INTERVAL '1 minute')
       ORDER BY ts_utc ASC;
     `;
@@ -42,8 +43,11 @@ export async function GET(req: Request) {
     const series: Record<string, any[]> = {};
     for (const u of urls) series[u] = [];
 
-    for (const r of rows.rows) {
-      series[r.url] = series[r.url] || [];
+    const urlSet = new Set(urls);
+
+    for (const r of rows.rows as any[]) {
+      if (!urlSet.has(r.url)) continue;
+
       series[r.url].push({
         ts_utc: r.ts_utc,
         dns_ms: r.dns_ms,
@@ -57,7 +61,7 @@ export async function GET(req: Request) {
       device_id,
       since_minutes,
       urls,
-      points: rows.rowCount ?? rows.rows.length,
+      points: (rows as any).rowCount ?? rows.rows.length,
       series,
     });
   } catch (e: any) {
