@@ -38,11 +38,13 @@ export async function verifyDevice(req: Request): Promise<VerifyResult> {
   if (!deviceId || !deviceKey) return { ok: false, deviceId: "" };
 
   // IMPORTANT: no generics here (Neon driver used in Vercel was choking on sql<T>)
-  const result = await sql(
-    "select device_key_hash from devices where device_id = $1 limit 1",
-    [deviceId]
-  );
-
+ const result = await sql`
+  select device_key_hash
+  from devices
+  where device_id = ${deviceId}
+  limit 1
+`;
+  
   const row = firstRow<{ device_key_hash: string }>(result);
   if (!row?.device_key_hash) return { ok: false, deviceId: "" };
 
