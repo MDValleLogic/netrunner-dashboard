@@ -1,3 +1,68 @@
+import { sql } from "@vercel/postgres";
+import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+
+/**
+ * GET /api/device-config?device_id=pi-001
+ * Pi polls this endpoint
+ */
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const device_id = searchParams.get("device_id") || "";
+
+    if (!device_id) {
+      return NextResponse.json(
+        { ok: false, error: "device_id is required" },
+        { status: 400 }
+      );
+    }
+
+    const result = await sql`
+      SELECT device_id, urls, interval_seconds, updated_at
+      FROM device_config
+      WHERE device_id = ${device_id}
+      LIMIT 1;
+    `;
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        version: "dc-v2",
+        config: {
+          device_id,
+          urls: [],
+          interval_seconds: 300,
+          updated_at: null,
+        },
+      });
+    }
+
+    const row = result.rows[0];
+
+    return NextResponse.json({
+      ok: true,
+      version: "dc-v2",
+      config: {
+        device_id: row.device_id,
+        urls: row.urls ?? [],
+        interval_seconds: row.interval_seconds ?? 300,
+        updated_at: row.updated_at,
+      },
+    });
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, error: e?.message || String(e) },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/device-config
+ * Dashboard saves config here
+ */
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
@@ -41,9 +106,8 @@ export async function POST(req: Request) {
         updated_at = NOW();
     `;
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, version: "dc-v2" });
   } catch (e: any) {
-    // This is the important part: return the real error so we can fix it fast
     return NextResponse.json(
       { ok: false, error: e?.message || String(e) },
       { status: 500 }
