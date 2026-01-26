@@ -1,7 +1,10 @@
 import { sql } from "@vercel/postgres";
 import { NextResponse } from "next/server";
 
+<<<<<<< HEAD
 // Vercel wants an explicit node runtime version
+=======
+>>>>>>> 49a267e (Fix runtime to nodejs20.x)
 export const runtime = "nodejs20.x";
 
 /**
