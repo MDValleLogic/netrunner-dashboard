@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 
-export const runtime = "nodejs"; // 👈 REQUIRED on Vercel for API routes
+export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  return NextResponse.json({ ok: true });
+  try {
+    const body = await request.json();
+    // temp: just prove we can receive structured data
+    return NextResponse.json({ ok: true, received: body });
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, error: "invalid_json", detail: String(e?.message ?? e) },
+      { status: 400 }
+    );
+  }
 }
