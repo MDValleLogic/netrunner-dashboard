@@ -22,5 +22,10 @@ export async function GET(req: Request) {
 
   rows.reverse();
 
-  return NextResponse.json({ ok: true, device_id, count: rows.length, rows });
-}
+  return NextResponse.json({
+    ok: true,
+    device_id,
+    count: rows.length,
+    rows,
+    build_tag: "a7c6ef8",
+});
