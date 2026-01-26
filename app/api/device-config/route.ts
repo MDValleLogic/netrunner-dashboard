@@ -1,7 +1,7 @@
 import { sql } from "@vercel/postgres";
 import { NextResponse } from "next/server";
 
-export const runtime = "nodejs";
+export const runtime = "nodejs20.x";
 
 /**
  * GET /api/device-config?device_id=pi-001
