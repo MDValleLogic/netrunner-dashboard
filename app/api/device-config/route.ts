@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     if (result.rows.length === 0) {
       return NextResponse.json({
         ok: true,
-        version: "dc-v2",
+        version: "dc-v3",
         config: {
           device_id,
           urls: [],
@@ -43,7 +43,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      version: "dc-v2",
+      version: "dc-v3",
       config: {
         device_id: row.device_id,
         urls: row.urls ?? [],
@@ -62,6 +62,8 @@ export async function GET(req: Request) {
 /**
  * POST /api/device-config
  * Dashboard saves config here
+ *
+ * NOTE: device_config.urls is TEXT[] (not JSONB)
  */
 export async function POST(req: Request) {
   try {
@@ -95,7 +97,7 @@ export async function POST(req: Request) {
       INSERT INTO device_config (device_id, urls, interval_seconds, updated_at)
       VALUES (
         ${device_id},
-        ${JSON.stringify(urls)}::jsonb,
+        ${urls}::text[],
         ${interval_seconds},
         NOW()
       )
@@ -106,7 +108,7 @@ export async function POST(req: Request) {
         updated_at = NOW();
     `;
 
-    return NextResponse.json({ ok: true, version: "dc-v2" });
+    return NextResponse.json({ ok: true, version: "dc-v3" });
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || String(e) },
