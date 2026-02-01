@@ -1,24 +1,47 @@
 import { NextResponse } from "next/server";
-import crypto from "crypto";
 import { sql } from "@/lib/db";
-import { newDeviceKey, hashDeviceKey } from "@/lib/authDevice";
+import crypto from "crypto";
 
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
-  const name = (body?.name || "NetRunner").toString();
+  try {
+    const body = await req.json();
+    const { device_id, name } = body;
 
-  const device_id = "pi-" + crypto.randomUUID();
-  const device_key = newDeviceKey();
+    if (!device_id) {
+      return NextResponse.json(
+        { ok: false, error: "device_id required" },
+        { status: 400 }
+      );
+    }
 
-  await sql`
-    insert into devices (device_id, device_key_hash, name, last_seen)
-    values (${device_id}, ${hashDeviceKey(device_key)}, ${name}, now())
-  `;
+    // Generate device key
+    const device_key = "vl_" + crypto.randomBytes(24).toString("hex");
+    const device_key_hash = crypto
+      .createHash("sha256")
+      .update(device_key)
+      .digest("hex");
 
-  await sql`
-    insert into device_config (device_id, interval_seconds, urls)
-    values (${device_id}, 300, ARRAY[]::text[])
-  `;
+    // Insert or update device
+    await sql`
+      insert into devices (device_id, name, device_key_hash)
+      values (${device_id}, ${name || device_id}, ${device_key_hash})
+      on conflict (device_id)
+      do update set
+        name = excluded.name,
+        device_key_hash = excluded.device_key_hash,
+        updated_at = now()
+    `;
 
-  return NextResponse.json({ device_id, device_key });
+    return NextResponse.json({
+      ok: true,
+      device_id,
+      device_key, // RETURNED ONCE
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { ok: false, error: err.message || "register failed" },
+      { status: 500 }
+    );
+  }
 }
+
