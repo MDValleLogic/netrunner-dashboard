@@ -1,4 +1,4 @@
-import { sql } from "@vercel/postgres";
+import { sql } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
       LIMIT 1;
     `;
 
-    if (result.rows.length === 0) {
+    if ((result as any[]).length === 0) {
       return NextResponse.json({
         ok: true,
         version: "dc-v7",
@@ -30,7 +30,7 @@ export async function GET(req: Request) {
       });
     }
 
-    const row = result.rows[0];
+    const row: any = (result as any[])[0];
 
     return NextResponse.json({
       ok: true,
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
         device_id: row.device_id,
         urls: row.urls ?? [],
         interval_seconds: row.interval_seconds ?? 300,
-        updated_at: row.updated_at,
+        updated_at: row.updated_at ?? null,
       },
     });
   } catch (e: any) {
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const device_id = (body.device_id || "").trim();
+    const device_id = String(body.device_id || "").trim();
     if (!device_id) {
       return NextResponse.json(
         { ok: false, error: "device_id is required" },
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
       LIMIT 1;
     `;
 
-    if (dev.rows.length === 0) {
+    if ((dev as any[]).length === 0) {
       return NextResponse.json(
         {
           ok: false,
@@ -116,3 +116,4 @@ export async function POST(req: Request) {
     );
   }
 }
+

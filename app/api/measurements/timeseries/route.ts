@@ -1,4 +1,4 @@
-import { sql } from "@vercel/postgres";
+import { sql } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -10,7 +10,11 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
 
   const device_id = searchParams.get("device_id") || "";
-  const since_minutes_str = searchParams.get("since_minutes") || "60";
+  // support both names (you used minutes in curl earlier)
+  const since_minutes_str =
+    searchParams.get("since_minutes") ||
+    searchParams.get("minutes") ||
+    "60";
 
   // allow repeated urls=... OR urls comma-separated
   const urls_multi = searchParams.getAll("urls");
@@ -30,7 +34,7 @@ export async function GET(req: Request) {
   if (urls.length > 5) return bad("Max 5 urls (MVP limit)");
 
   try {
-    // MVP-safe query: device + time window (filter urls in JS)
+    // Neon sql() returns an array of rows directly
     const rows = await sql`
       SELECT device_id, ts_utc, url, dns_ms, http_ms, http_err
       FROM measurements
@@ -45,7 +49,7 @@ export async function GET(req: Request) {
 
     const urlSet = new Set(urls);
 
-    for (const r of rows.rows as any[]) {
+    for (const r of rows as any[]) {
       if (!urlSet.has(r.url)) continue;
 
       series[r.url].push({
@@ -56,12 +60,15 @@ export async function GET(req: Request) {
       });
     }
 
+    // points = total points returned across selected urls (not total DB rows)
+    const points = urls.reduce((acc, u) => acc + (series[u]?.length ?? 0), 0);
+
     return Response.json({
       ok: true,
       device_id,
       since_minutes,
       urls,
-      points: (rows as any).rowCount ?? rows.rows.length,
+      points,
       series,
     });
   } catch (e: any) {
@@ -71,3 +78,4 @@ export async function GET(req: Request) {
     );
   }
 }
+
