@@ -1,181 +1,279 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { loadDeviceConfig, saveDeviceConfig } from "@/lib/client/deviceConfigClient";
+import { useEffect, useMemo, useState } from "react";
 
-function nowIso() {
-  return new Date().toISOString();
+type NetRunnerStatus = {
+  ok: boolean;
+  error?: string;
+  device_id: string;
+
+  appliance: {
+    online: boolean;
+    last_seen_utc: string | null;
+    last_seen_age_s: number | null;
+    offline_after_s: number;
+  };
+
+  webrunner: {
+    enabled: boolean;
+    configured: boolean;
+    interval_s: number;
+    url_count: number;
+    urls_preview?: string[];
+  };
+
+  last_measurement: null | {
+    ts_utc: string;
+    url: string;
+    dns_ms: number;
+    http_ms: number;
+    http_err: string;
+  };
+};
+
+function fmtAgo(iso?: string | null) {
+  if (!iso) return "—";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  const sec = Math.floor((Date.now() - t) / 1000);
+  if (sec < 5) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 48) return `${hr}h ago`;
+  const d = Math.floor(hr / 24);
+  return `${d}d ago`;
 }
 
-export default function Home() {
+export default function NetRunnerHome() {
   const [deviceId, setDeviceId] = useState("pi-001");
-  const [intervalS, setIntervalS] = useState(300);
-  const [urlsText, setUrlsText] = useState("https://example.com\nhttps://google.com");
+
+  const [status, setStatus] = useState<NetRunnerStatus | null>(null);
 
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
+  const [err, setErr] = useState<string>("");
 
-  // metadata
-  const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [serverUpdatedAt, setServerUpdatedAt] = useState<string | null>(null);
-  const [lastSeenUtc, setLastSeenUtc] = useState<string | null>(null);
+  const webRunnerEnabled = useMemo(() => Boolean(status?.webrunner?.enabled), [status]);
+  const webRunnerConfigured = useMemo(() => Boolean(status?.webrunner?.configured), [status]);
 
-  const urls = useMemo(
-    () => urlsText.split("\n").map((s) => s.trim()).filter(Boolean),
-    [urlsText]
-  );
+  async function refresh() {
+    setErr("");
+    setLoading(true);
 
-  async function fetchLastSeen(id: string) {
     try {
-      const r = await fetch(
-        `/api/measurements/recent?device_id=${encodeURIComponent(id)}&limit=1`,
+      const res = await fetch(
+        `/api/netrunner/status?device_id=${encodeURIComponent(deviceId)}`,
         { cache: "no-store" }
       );
-      const j = await r.json().catch(() => ({}));
-      const ts = j?.rows?.[0]?.ts_utc ?? null;
-      setLastSeenUtc(ts);
-    } catch {
-      setLastSeenUtc(null);
-    }
-  }
 
-  async function onLoad() {
-    setStatus(null);
-    setLoading(true);
-    try {
-      const env = await loadDeviceConfig(deviceId);
-      const cfg = env?.config ?? {};
+      const j = (await res.json().catch(() => null)) as NetRunnerStatus | null;
 
-      setIntervalS(cfg.interval_s ?? 300);
-      setUrlsText((cfg.urls ?? []).join("\n"));
+      if (!res.ok || !j?.ok) {
+        setStatus(null);
+        setErr((j as any)?.error || `Status failed (${res.status})`);
+        return;
+      }
 
-      setServerUpdatedAt(env.updated_at ?? null);
-      setLastLoadedAt(nowIso());
-      setStatus({ kind: "ok", msg: "Loaded device config." });
-
-      // Also fetch “device last seen”
-      await fetchLastSeen(deviceId);
+      setStatus(j);
     } catch (e: any) {
-      setStatus({ kind: "err", msg: e?.message || "Failed to load config." });
-      setLastSeenUtc(null);
+      setStatus(null);
+      setErr(e?.message || "Refresh failed");
     } finally {
       setLoading(false);
     }
   }
 
-  async function onSave() {
-    setStatus(null);
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    if (!deviceId) return setStatus({ kind: "err", msg: "Missing device_id." });
-    if (urls.length === 0) return setStatus({ kind: "err", msg: "Add at least one URL." });
-    if (!Number.isFinite(intervalS) || intervalS < 30)
-      return setStatus({ kind: "err", msg: "Interval too small. Use >= 30 seconds." });
+  const online = Boolean(status?.appliance?.online);
+  const lastSeenUtc = status?.appliance?.last_seen_utc ?? null;
 
-    setSaving(true);
-    try {
-      const config = { interval_s: intervalS, urls };
-      await saveDeviceConfig(deviceId, config);
-
-      setLastSavedAt(nowIso());
-      setStatus({ kind: "ok", msg: "Saved. Device will apply on next poll." });
-
-      // Refresh DB updated_at + last seen for instant confidence
-      const env = await loadDeviceConfig(deviceId);
-      setServerUpdatedAt(env.updated_at ?? null);
-      await fetchLastSeen(deviceId);
-    } catch (e: any) {
-      setStatus({ kind: "err", msg: e?.message || "Failed to save config." });
-    } finally {
-      setSaving(false);
-    }
-  }
+  const last = status?.last_measurement ?? null;
+  const lastSignal = last
+    ? last.http_err
+      ? `FAILED (${last.http_err})`
+      : `OK • dns ${Math.round(last.dns_ms)}ms • http ${Math.round(last.http_ms)}ms`
+    : "—";
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-black dark:text-zinc-50">
-      <div className="mx-auto max-w-4xl px-6 py-10">
-        <div className="mb-6">
-          <h1 className="text-3xl font-extrabold tracking-tight">ValleLogic • WebRunner</h1>
-          <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-            WebRunner config control — load/save URLs and interval for a device.
-          </p>
+    <div style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>ValleLogic • NetRunner</div>
+          <h1 style={{ fontSize: 28, margin: 0 }}>NetRunner Home</h1>
+          <div style={{ opacity: 0.75, marginTop: 6 }}>
+            Operational truth: appliance health + WebRunner state.
+          </div>
         </div>
 
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end">
-            <label className="flex flex-1 flex-col gap-2">
-              <span className="text-xs text-zinc-600 dark:text-zinc-400">Device ID</span>
-              <input
-                value={deviceId}
-                onChange={(e) => setDeviceId(e.target.value)}
-                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-800 dark:bg-black dark:focus:ring-zinc-700"
-                placeholder="pi-001"
-              />
-            </label>
+        <a
+          href="/dashboard"
+          style={{
+            background: "#1D4ED8",
+            color: "white",
+            padding: "10px 14px",
+            borderRadius: 10,
+            textDecoration: "none",
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+            opacity: online ? 1 : 0.75,
+          }}
+        >
+          Open WebRunner
+        </a>
+      </div>
 
-            <label className="flex w-full flex-col gap-2 md:w-56">
-              <span className="text-xs text-zinc-600 dark:text-zinc-400">Interval (seconds)</span>
-              <input
-                type="number"
-                min={30}
-                value={intervalS}
-                onChange={(e) => setIntervalS(Number(e.target.value))}
-                className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-800 dark:bg-black dark:focus:ring-zinc-700"
-              />
-            </label>
+      <div style={{ marginTop: 18, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <label style={{ fontSize: 13, opacity: 0.8 }}>Device ID</label>
+        <input
+          value={deviceId}
+          onChange={(e) => setDeviceId(e.target.value)}
+          style={{
+            width: 260,
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid rgba(0,0,0,0.12)",
+          }}
+          placeholder="pi-001"
+        />
+        <button
+          onClick={refresh}
+          disabled={loading}
+          style={{
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid rgba(0,0,0,0.12)",
+            background: "white",
+            fontWeight: 600,
+            cursor: loading ? "not-allowed" : "pointer",
+          }}
+        >
+          {loading ? "Refreshing…" : "Refresh"}
+        </button>
 
-            <div className="flex gap-3">
-              <button
-                onClick={onLoad}
-                disabled={loading || saving}
-                className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-black dark:hover:bg-zinc-900"
-              >
-                {loading ? "Loading…" : "Load"}
-              </button>
+        {err ? <span style={{ color: "crimson", fontSize: 13 }}>{err}</span> : null}
+      </div>
 
-              <button
-                onClick={onSave}
-                disabled={loading || saving}
-                className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-black dark:hover:bg-white"
-              >
-                {saving ? "Saving…" : "Save"}
-              </button>
+      <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {/* Appliance status */}
+        <div style={{ border: "1px solid rgba(0,0,0,0.10)", borderRadius: 14, padding: 14 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Appliance</div>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 10,
+                height: 10,
+                borderRadius: 999,
+                background: online ? "#16A34A" : "#DC2626",
+              }}
+            />
+            <div style={{ fontSize: 16, fontWeight: 650 }}>{online ? "Online" : "Offline"}</div>
+          </div>
+
+          <div style={{ marginTop: 8, opacity: 0.8, fontSize: 13 }}>
+            Last seen: <b>{lastSeenUtc ? `${fmtAgo(lastSeenUtc)} (${lastSeenUtc})` : "—"}</b>
+          </div>
+
+          <div style={{ marginTop: 10, opacity: 0.8, fontSize: 13 }}>
+            Last web signal: <b>{lastSignal}</b>
+          </div>
+
+          {status?.appliance?.offline_after_s ? (
+            <div style={{ marginTop: 8, opacity: 0.7, fontSize: 12 }}>
+              Offline threshold: {Math.round(status.appliance.offline_after_s / 60)} minutes
+            </div>
+          ) : null}
+        </div>
+
+        {/* Apps */}
+        <div style={{ border: "1px solid rgba(0,0,0,0.10)", borderRadius: 14, padding: 14 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Apps</div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0" }}>
+            <div>
+              <div style={{ fontWeight: 650 }}>WebRunner</div>
+              <div style={{ opacity: 0.75, fontSize: 13 }}>
+                URL checks on a schedule (interval + URL list)
+              </div>
+            </div>
+
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontWeight: 800, color: webRunnerEnabled ? "#16A34A" : "#6B7280" }}>
+                {webRunnerEnabled ? "ON" : "OFF"}
+              </div>
+              <div style={{ fontWeight: 700, color: webRunnerConfigured ? "#16A34A" : "#6B7280", fontSize: 12 }}>
+                {webRunnerConfigured ? "Configured" : "Not configured"}
+              </div>
             </div>
           </div>
 
-          {status && (
-            <div
-              className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
-                status.kind === "ok"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-100"
-                  : "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-100"
-              }`}
-            >
-              <span className="mr-2 font-bold">{status.kind === "ok" ? "✓" : "✕"}</span>
-              {status.msg}
+          <div style={{ borderTop: "1px solid rgba(0,0,0,0.08)", margin: "8px 0" }} />
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0" }}>
+            <div>
+              <div style={{ fontWeight: 650 }}>RouteRunner</div>
+              <div style={{ opacity: 0.75, fontSize: 13 }}>Traceroute destinations + AI analysis</div>
             </div>
-          )}
-
-          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-zinc-600 dark:text-zinc-400">
-            <div>Last loaded (local): {lastLoadedAt ? new Date(lastLoadedAt).toLocaleString() : "—"}</div>
-            <div>Last saved (local): {lastSavedAt ? new Date(lastSavedAt).toLocaleString() : "—"}</div>
-            <div>Updated in DB: {serverUpdatedAt ? new Date(serverUpdatedAt).toLocaleString() : "—"}</div>
-            <div>Device last seen: {lastSeenUtc ? new Date(lastSeenUtc).toLocaleString() : "—"}</div>
+            <div style={{ opacity: 0.65, fontWeight: 700 }}>Coming soon</div>
           </div>
 
-          <div className="mt-6">
-            <label className="flex flex-col gap-2">
-              <span className="text-xs text-zinc-600 dark:text-zinc-400">URLs (one per line)</span>
-              <textarea
-                rows={12}
-                value={urlsText}
-                onChange={(e) => setUrlsText(e.target.value)}
-                className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 font-mono text-xs leading-5 outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-800 dark:bg-black dark:focus:ring-zinc-700"
-                placeholder={"https://example.com\nhttps://yourapp.com/health\nhttps://google.com"}
-              />
-            </label>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0" }}>
+            <div>
+              <div style={{ fontWeight: 650 }}>PingRunner</div>
+              <div style={{ opacity: 0.75, fontSize: 13 }}>Ping destinations + AI analysis</div>
+            </div>
+            <div style={{ opacity: 0.65, fontWeight: 700 }}>Coming soon</div>
           </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0" }}>
+            <div>
+              <div style={{ fontWeight: 650 }}>StorageRunner</div>
+              <div style={{ opacity: 0.75, fontSize: 13 }}>Local buffering + upload health</div>
+            </div>
+            <div style={{ opacity: 0.65, fontWeight: 700 }}>Coming soon</div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0" }}>
+            <div>
+              <div style={{ fontWeight: 650 }}>NetLooker</div>
+              <div style={{ opacity: 0.75, fontSize: 13 }}>“Who is talking” on the network</div>
+            </div>
+            <div style={{ opacity: 0.65, fontWeight: 700 }}>Coming soon</div>
+          </div>
+        </div>
+      </div>
+
+      {/* WebRunner config summary */}
+      <div style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 14, padding: 14 }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>WebRunner Config Summary</div>
+        <div style={{ display: "flex", gap: 18, flexWrap: "wrap", opacity: 0.85, fontSize: 13 }}>
+          <div>
+            Enabled: <b>{status ? (webRunnerEnabled ? "Yes" : "No") : "—"}</b>
+          </div>
+          <div>
+            Interval: <b>{status ? `${status.webrunner.interval_s}s` : "—"}</b>
+          </div>
+          <div>
+            URLs: <b>{status ? status.webrunner.url_count : "—"}</b>
+          </div>
+        </div>
+
+        {status?.webrunner?.urls_preview?.length ? (
+          <div style={{ marginTop: 10, opacity: 0.8, fontSize: 13 }}>
+            URLs (preview): <b>{status.webrunner.urls_preview.join(", ")}</b>
+          </div>
+        ) : null}
+
+        <div style={{ marginTop: 10 }}>
+          <a href="/dashboard" style={{ textDecoration: "none", fontWeight: 700 }}>
+            Configure WebRunner →
+          </a>
         </div>
       </div>
     </div>
