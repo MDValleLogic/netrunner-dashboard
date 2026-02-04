@@ -12,25 +12,29 @@ export async function GET(req: Request) {
 
   const deviceId = auth.deviceId;
 
-  const rows = await sql<{
-    interval_seconds: number;
-    urls: string[];
-    updated_at: Date;
-  }>`
+  const res = await sql`
     select interval_seconds, urls, updated_at
     from device_config
     where device_id = ${deviceId}
     limit 1
   `;
 
+  const rows = Array.isArray(res) ? res : (res?.rows ?? []);
+
   if (!rows || rows.length === 0) {
     return Response.json({ configured: false });
   }
 
+  const row = rows[0] as {
+    interval_seconds: number;
+    urls: string[];
+    updated_at: Date;
+  };
+
   return Response.json({
     configured: true,
-    interval_seconds: rows[0].interval_seconds,
-    urls: rows[0].urls,
-    updated_at: rows[0].updated_at,
+    interval_seconds: row.interval_seconds,
+    urls: row.urls,
+    updated_at: row.updated_at,
   });
 }

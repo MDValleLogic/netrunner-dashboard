@@ -15,6 +15,15 @@ function bad(msg: string, details?: any) {
   return Response.json({ ok: false, error: msg, details }, { status: 400 });
 }
 
+// Your db helper may return either { rows: [...] } OR an array directly.
+// Normalize it so route logic is stable.
+function getRows<T = any>(result: any): T[] {
+  if (!result) return [];
+  if (Array.isArray(result)) return result as T[];
+  if (Array.isArray(result.rows)) return result.rows as T[];
+  return [];
+}
+
 export async function POST(req: Request) {
   let body: IngestBody;
 
@@ -68,9 +77,11 @@ export async function POST(req: Request) {
       RETURNING id, device_id, ts_utc, url, dns_ms, http_ms, http_err;
     `;
 
+    const row = getRows(inserted)[0] ?? null;
+
     return Response.json({
       ok: true,
-      inserted: inserted.rows?.[0] ?? null,
+      inserted: row,
     });
   } catch (e: any) {
     // If Vercel Postgres env vars aren’t wired, this will fail here.
@@ -80,3 +91,4 @@ export async function POST(req: Request) {
     );
   }
 }
+

@@ -27,7 +27,7 @@ export async function authDevice(deviceKey: string) {
 
   const deviceKeyHash = hashDeviceKey(deviceKey);
 
-  const rows = await sql`
+  const result = await sql`
     SELECT device_id, status
     FROM devices
     WHERE device_key_hash = ${deviceKeyHash}
@@ -35,7 +35,9 @@ export async function authDevice(deviceKey: string) {
     LIMIT 1
   `;
 
-  return rows.length ? rows[0] : null;
+  const row = firstRow<{ device_id: string; status: string }>(result);
+  return row;
+
 }
 
 /**
