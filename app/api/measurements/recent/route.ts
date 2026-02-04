@@ -1,44 +1,53 @@
-import { requireTenantSession } from "@/lib/requireTenantSession";
-import { setTenantScope } from "@/lib/tenantScope";
-import { sql } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { sql } from "@/lib/db";
 
 export const runtime = "nodejs";
 
+function getRows<T = any>(result: any): T[] {
+  if (!result) return [];
+  if (Array.isArray(result)) return result as T[];
+  if (Array.isArray(result.rows)) return result.rows as T[];
+  return [];
+}
+
 export async function GET(req: Request) {
-  // ✅ Require login + set tenant scope for RLS
-  const { tenantId } = await requireTenantSession();
-  await setTenantScope(tenantId);
-
-  const { searchParams } = new URL(req.url);
-
-  const device_id = searchParams.get("device_id") || "";
-  const limit = Math.min(Math.max(Number(searchParams.get("limit") || "50"), 1), 200);
-
-  if (!device_id) {
-    return NextResponse.json({ ok: false, error: "device_id is required" }, { status: 400 });
-  }
-
   try {
-    // ✅ neon(sql) returns an ARRAY of rows
-    const rows = await sql`
-      select device_id, ts_utc, url, dns_ms, http_ms, http_err
-      from measurements
-      where device_id = ${device_id}
-      order by ts_utc desc
-      limit ${limit}
-    `;
+    const { searchParams } = new URL(req.url);
+
+    const deviceId = searchParams.get("device_id") || "";
+    const limitRaw = searchParams.get("limit") || "20";
+    const limit = Math.max(1, Math.min(200, Number(limitRaw) || 20));
+
+    let result: any;
+
+    if (deviceId) {
+      result = await sql`
+        select ts_utc, url, dns_ms, http_ms, http_err
+        from measurements
+        where device_id = ${deviceId}
+        order by ts_utc desc
+        limit ${limit}
+      `;
+    } else {
+      result = await sql`
+        select ts_utc, url, dns_ms, http_ms, http_err, device_id
+        from measurements
+        order by ts_utc desc
+        limit ${limit}
+      `;
+    }
+
+    const rows = getRows(result);
 
     return NextResponse.json({
       ok: true,
-      device_id,
-      count: (rows as any[]).length,
+      device_id: deviceId || null,
+      limit,
       rows,
-      build_tag: "a7c6ef8",
     });
-  } catch (e: any) {
+  } catch (err: any) {
     return NextResponse.json(
-      { ok: false, error: "DB query failed", details: String(e?.message ?? e) },
+      { ok: false, error: err?.message || String(err) },
       { status: 500 }
     );
   }
