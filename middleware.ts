@@ -5,32 +5,40 @@ import { getToken } from "next-auth/jwt";
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Public routes
+  // Allow Next.js internals & public pages
   if (
-    pathname === "/" ||
-    pathname === "/login" ||
-    pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/_next")
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon.ico") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/api/auth")
   ) {
     return NextResponse.next();
   }
 
+  // ✅ DEVICE PLANE — MUST BE PUBLIC
+  if (
+    pathname.startsWith("/v1/") ||
+    pathname === "/api/heartbeat" ||
+    pathname === "/api/device-config" ||
+    pathname === "/api/measurements/ingest"
+  ) {
+    return NextResponse.next();
+  }
+
+  // UI requires auth
   const token = await getToken({
     req,
     secret: process.env.NEXTAUTH_SECRET,
   });
 
-  // Protect dashboard + apps
   if (!token) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(new URL("/login", req.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!api|_next|favicon.ico).*)"],
+  matcher: ["/((?!_next).*)"],
 };
 
