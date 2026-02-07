@@ -1,9 +1,9 @@
 import { sql } from "@/lib/db";
+import { verifyDevice } from "@/lib/authDevice";
 
 export const runtime = "nodejs";
 
 type IngestBody = {
-  device_id: string;
   ts_utc: string; // ISO string
   url: string;
   dns_ms: number;
@@ -25,19 +25,25 @@ function getRows<T = any>(result: any): T[] {
 }
 
 export async function POST(req: Request) {
+  // 0) Device auth (x-device-id + x-device-key)
+  const auth = await verifyDevice(req);
+  if (!auth.ok) {
+    return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+  const device_id = auth.deviceId;
+
   let body: IngestBody;
 
   // 1) Parse JSON
   try {
     body = (await req.json()) as IngestBody;
-  } catch (e) {
+  } catch {
     return bad("Invalid JSON body");
   }
 
   // 2) Basic validation
-  const { device_id, ts_utc, url, dns_ms, http_ms, http_err } = body || ({} as any);
+  const { ts_utc, url, dns_ms, http_ms, http_err } = body || ({} as any);
 
-  if (!device_id || typeof device_id !== "string") return bad("device_id is required");
   if (!ts_utc || typeof ts_utc !== "string") return bad("ts_utc is required");
   if (!url || typeof url !== "string") return bad("url is required");
   if (typeof dns_ms !== "number") return bad("dns_ms must be a number");
@@ -70,7 +76,7 @@ export async function POST(req: Request) {
       ON measurements (device_id, ts_utc DESC);
     `;
 
-    // 5) Insert measurement
+    // 5) Insert measurement (device_id comes from verified headers)
     const inserted = await sql`
       INSERT INTO measurements (device_id, ts_utc, url, dns_ms, http_ms, http_err)
       VALUES (${device_id}, ${ts.toISOString()}, ${url}, ${dns_ms}, ${http_ms}, ${err})
@@ -84,7 +90,6 @@ export async function POST(req: Request) {
       inserted: row,
     });
   } catch (e: any) {
-    // If Vercel Postgres env vars aren’t wired, this will fail here.
     return Response.json(
       { ok: false, error: "DB insert failed", details: String(e?.message ?? e) },
       { status: 500 }
