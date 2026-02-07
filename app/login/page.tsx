@@ -18,7 +18,7 @@ export default function LoginPage() {
           setErr("");
           const res = await signIn("credentials", { email, password, redirect: false });
           if (res?.error) setErr("Invalid email or password");
-          else window.location.href = "/dashboard";
+          else window.location.href = "/netrunner/dashboard";
         }}
       >
         <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} /><br /><br />
