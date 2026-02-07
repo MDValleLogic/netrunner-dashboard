@@ -2,24 +2,15 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-function stripBasePath(pathname: string) {
-  return pathname.startsWith("/netrunner")
-    ? pathname.slice("/netrunner".length) || "/"
-    : pathname;
-}
-
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Normalize so this works whether Next gives us /login or /netrunner/login
-  const p = stripBasePath(pathname);
-
-  // Public routes (normalized)
+  // Public routes
   if (
-    p === "/" ||                // /netrunner
-    p === "/login" ||           // /netrunner/login
-    p.startsWith("/api/auth") ||// /netrunner/api/auth
-    p.startsWith("/_next")      // assets
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/_next")
   ) {
     return NextResponse.next();
   }
@@ -29,10 +20,10 @@ export async function middleware(req: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET,
   });
 
-  // Protect everything else under the app
+  // Protect dashboard + apps
   if (!token) {
     const url = req.nextUrl.clone();
-    url.pathname = "/netrunner/login";
+    url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
@@ -40,7 +31,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Run middleware for the whole app mount, not just dashboard
-  matcher: ["/netrunner/:path*"],
+  matcher: ["/((?!api|_next|favicon.ico).*)"],
 };
 
