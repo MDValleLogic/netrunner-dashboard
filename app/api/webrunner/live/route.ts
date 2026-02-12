@@ -1,48 +1,64 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/authOptions";
+import { verifyDevice } from "@/lib/authDevice";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+function toArray<T = any>(rows: any): T[] {
+  // neon/serverless sql return types can be unions; normalize to plain array
+  if (!rows) return [];
+  if (Array.isArray(rows)) return rows as T[];
+  // Some clients return { rows: [...] }
+  if (typeof rows === "object" && Array.isArray((rows as any).rows)) return (rows as any).rows as T[];
+  return [];
+}
 
 export async function GET(req: Request) {
-  // REAL security: require authenticated session
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json(
-      { ok: false, error: "unauthorized" },
-      { status: 401 }
-    );
+  const auth = await verifyDevice(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { searchParams } = new URL(req.url);
-  const device_id = searchParams.get("device_id") || "pi-001";
-  const limit = Math.min(
-    parseInt(searchParams.get("limit") || "50", 10) || 50,
-    200
+  const device_id = auth.deviceId;
+
+  // Device row
+  const devRows = toArray<any>(
+    await sql`
+      select
+        device_id,
+        last_seen,
+        hostname,
+        ip,
+        mode,
+        tenant_id,
+        claimed,
+        claim_code_sha256
+      from devices
+      where device_id = ${device_id}
+      limit 1
+    `
   );
 
-  const devRows = await sql`
-    select device_id, last_seen
-    from devices
-    where device_id = ${device_id}
-    limit 1
-  `;
-
-  const measRows = await sql`
-    select ts_utc, url, dns_ms, http_ms, http_err
-    from measurements
-    where device_id = ${device_id}
-    order by ts_utc desc
-    limit ${limit}
-  `;
+  // Latest measurements (last N)
+  const measRows = toArray<any>(
+    await sql`
+      select
+        ts_utc,
+        url,
+        dns_ms,
+        http_ms,
+        http_err
+      from measurements
+      where device_id = ${device_id}
+      order by ts_utc desc
+      limit 50
+    `
+  );
 
   return NextResponse.json({
     ok: true,
     device_id,
-    device: devRows?.[0] ?? null,
-    measurements: measRows ?? [],
+    device: devRows.length ? devRows[0] : null,
+    measurements: measRows,
     fetched_at_utc: new Date().toISOString(),
   });
 }
+
