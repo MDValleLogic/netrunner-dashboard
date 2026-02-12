@@ -1,106 +1,75 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/authOptions";
+import { verifyDevice } from "@/lib/authDevice";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+type WebRunnerConfig = {
+  mode?: string;
+  urls: string[];
+  interval_seconds?: number;
+  timeout_seconds?: number;
+};
 
-function normalizeUrls(urls: string[]) {
-  const out: string[] = [];
-  for (const raw of urls) {
-    const s = (raw || "").trim();
-    if (!s) continue;
-    try {
-      const u = new URL(s);
-      out.push(u.toString());
-    } catch {
-      // ignore invalid urls
-    }
-  }
-  return Array.from(new Set(out));
+const SAFE_DEFAULT: WebRunnerConfig = {
+  mode: "safe-default",
+  urls: ["https://www.google.com/generate_204"],
+  interval_seconds: 300,
+  timeout_seconds: 10,
+};
+
+function normalizeConfig(input: any): WebRunnerConfig {
+  const urls = Array.isArray(input?.urls) ? input.urls.filter((u: any) => typeof u === "string" && u.startsWith("http")) : [];
+  const interval = Number.isFinite(Number(input?.interval_seconds)) ? Number(input.interval_seconds) : SAFE_DEFAULT.interval_seconds;
+  const timeout = Number.isFinite(Number(input?.timeout_seconds)) ? Number(input.timeout_seconds) : SAFE_DEFAULT.timeout_seconds;
+  const mode = typeof input?.mode === "string" ? input.mode : SAFE_DEFAULT.mode;
+
+  return {
+    mode,
+    urls: urls.length ? urls : SAFE_DEFAULT.urls,
+    interval_seconds: interval,
+    timeout_seconds: timeout,
+  };
 }
 
 export async function GET(req: Request) {
-  // Human admin: require authenticated session
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  const auth = await verifyDevice(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { searchParams } = new URL(req.url);
-  const device_id = searchParams.get("device_id") || "pi-001";
+  const deviceId = auth.deviceId;
 
-  const rows = await sql`
-    SELECT device_id, urls, interval_seconds, updated_at
-    FROM device_config
-    WHERE device_id = ${device_id}
-    LIMIT 1
-  `;
+  // If the DB lookup fails (missing column/table/etc), we fall back to SAFE_DEFAULT.
+  try {
+    // Expect (optional) json/jsonb column "webrunner_config" on devices.
+    // If you don’t have it yet, this query may throw -> caught below.
+    const rows = (await sql`
+      select
+        webrunner_config,
+        claimed,
+        tenant_id
+      from devices
+      where device_id = ${deviceId}
+      limit 1
+    `) as Array<{
+      webrunner_config: any;
+      claimed: boolean | null;
+      tenant_id: string | null;
+    }>;
 
-  const row = rows?.[0] ?? null;
+    const row = rows?.[0] ?? null;
 
-  return NextResponse.json({
-    ok: true,
-    device_id,
-    config: row
-      ? {
-          device_id: row.device_id,
-          urls: row.urls ?? [],
-          interval_seconds: row.interval_seconds ?? 300,
-          updated_at: row.updated_at,
-        }
-      : { device_id, urls: [], interval_seconds: 300, updated_at: null },
-  });
-}
+    // Unclaimed devices ALWAYS get safe default
+    const claimed = Boolean(row?.claimed);
+    const tenantId = (row?.tenant_id ?? "").trim();
+    if (!claimed || !tenantId) {
+      return NextResponse.json({ ok: true, config: SAFE_DEFAULT });
+    }
 
-export async function POST(req: Request) {
-  // Human admin: require authenticated session
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    const cloudConfig = row?.webrunner_config ? normalizeConfig(row.webrunner_config) : SAFE_DEFAULT;
+    return NextResponse.json({ ok: true, config: cloudConfig });
+  } catch {
+    // MVP-safe: never break device operation because DB/schema isn't ready yet
+    return NextResponse.json({ ok: true, config: SAFE_DEFAULT });
   }
-
-  const body = await req.json().catch(() => ({}));
-  const device_id = (body.device_id || "pi-001").toString();
-  const urls = normalizeUrls(Array.isArray(body.urls) ? body.urls : []);
-  const interval_seconds = Math.max(5, parseInt(body.interval_seconds || "300", 10) || 300);
-
-  if (urls.length === 0) {
-    return NextResponse.json({ ok: false, error: "no_valid_urls" }, { status: 400 });
-  }
-
-  // Upsert: update if exists, else insert
-  await sql`
-    INSERT INTO device_config (device_id, urls, interval_seconds, updated_at)
-    VALUES (${device_id}, ${urls}::text[], ${interval_seconds}, NOW())
-    ON CONFLICT (device_id)
-    DO UPDATE SET
-      urls = EXCLUDED.urls,
-      interval_seconds = EXCLUDED.interval_seconds,
-      updated_at = NOW()
-  `;
-
-  const rows = await sql`
-    SELECT device_id, urls, interval_seconds, updated_at
-    FROM device_config
-    WHERE device_id = ${device_id}
-    LIMIT 1
-  `;
-
-  const row = rows?.[0] ?? null;
-
-  return NextResponse.json({
-    ok: true,
-    device_id,
-    config: row
-      ? {
-          device_id: row.device_id,
-          urls: row.urls ?? [],
-          interval_seconds: row.interval_seconds ?? interval_seconds,
-          updated_at: row.updated_at,
-        }
-      : { device_id, urls, interval_seconds, updated_at: null },
-  });
 }
 
