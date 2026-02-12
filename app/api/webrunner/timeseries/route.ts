@@ -6,6 +6,18 @@ import { authOptions } from "@/lib/authOptions";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type AnyRow = Record<string, any>;
+
+function toArray<T = AnyRow>(q: unknown): T[] {
+  if (!q) return [];
+  if (Array.isArray(q)) return q as T[];
+  if (typeof q === "object" && q !== null && "rows" in q) {
+    const rows = (q as { rows?: unknown }).rows;
+    if (Array.isArray(rows)) return rows as T[];
+  }
+  return [];
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -30,12 +42,14 @@ export async function GET(req: Request) {
     limit 5
   `;
 
-  const urls = (top ?? []).map((r: any) => r.url as string);
+  const topRows = toArray<AnyRow>(top);
+  const urls = topRows.map((r) => r.url as string).filter(Boolean);
+
   if (urls.length === 0) {
-    return NextResponse.json({ ok: true, device_id, metric, urls: [], points: [] });
+    return NextResponse.json({ ok: true, device_id, metric, window_minutes, bucket_seconds, urls: [], points: [] });
   }
 
-  const rows = await sql`
+  const q = await sql`
     with base as (
       select url, ts_utc, ${metricCol} as v
       from measurements
@@ -57,6 +71,8 @@ export async function GET(req: Request) {
     order by ts_utc asc
   `;
 
+  const points = toArray<AnyRow>(q);
+
   return NextResponse.json({
     ok: true,
     device_id,
@@ -64,7 +80,7 @@ export async function GET(req: Request) {
     window_minutes,
     bucket_seconds,
     urls,
-    points: rows ?? [],
+    points,
     fetched_at_utc: new Date().toISOString(),
   });
 }
