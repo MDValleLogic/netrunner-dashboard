@@ -14,6 +14,17 @@ type HeartbeatBody = {
   claim_code_sha256?: string;
 };
 
+type AnyRow = Record<string, any>;
+function toArray<T = AnyRow>(q: unknown): T[] {
+  if (!q) return [];
+  if (Array.isArray(q)) return q as T[];
+  if (typeof q === "object" && q !== null && "rows" in q) {
+    const rows = (q as { rows?: unknown }).rows;
+    if (Array.isArray(rows)) return rows as T[];
+  }
+  return [];
+}
+
 function asString(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
@@ -40,7 +51,7 @@ export async function POST(req: Request) {
   const ip = asString(body.ip).trim() || null;
   const mode = asString(body.mode).trim() || null;
 
-  // Device can report claimed=true, but never allow claimed=false to override DB.
+  // Device may say claimed=true, but never allow claimed=false to override DB.
   const claimedFromDevice = asBool(body.claimed);
 
   const claimCodeSha256 = asString(body.claim_code_sha256).trim() || null;
@@ -60,9 +71,8 @@ export async function POST(req: Request) {
       returning device_id
     `;
 
-    const updated =
-      Array.isArray(r) ? r[0]?.device_id :
-      (r as any)?.rows?.[0]?.device_id ?? null;
+    const rows = toArray<{ device_id: string }>(r);
+    const updated = rows[0]?.device_id ?? null;
 
     if (!updated) {
       return NextResponse.json(
