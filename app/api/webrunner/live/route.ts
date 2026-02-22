@@ -8,9 +8,6 @@ export const dynamic = "force-dynamic";
 
 type AnyRow = Record<string, any>;
 
-/**
- * Normalize neon/sql results to simple array.
- */
 function toArray<T = AnyRow>(q: unknown): T[] {
   if (!q) return [];
   if (Array.isArray(q)) return q as T[];
@@ -24,28 +21,14 @@ function toArray<T = AnyRow>(q: unknown): T[] {
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) {
-    return NextResponse.json(
-      { ok: false, error: "unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
   const { searchParams } = new URL(req.url);
+  const device_id = searchParams.get("device_id") || "pi-001";
+  const limit = Math.min(parseInt(searchParams.get("limit") || "100", 10) || 100, 500);
+  const window_minutes = Math.min(parseInt(searchParams.get("window_minutes") || "60", 10) || 60, 1440);
 
-  const device_id =
-    searchParams.get("device_id") || "pi-001";
-
-  const limit = Math.min(
-    parseInt(searchParams.get("limit") || "100", 10) || 100,
-    500
-  );
-
-  const window_minutes = Math.min(
-    parseInt(searchParams.get("window_minutes") || "60", 10) || 60,
-    1440
-  );
-
-  // 1) Load device
   const devQ = await sql`
     select
       device_id,
@@ -60,28 +43,26 @@ export async function GET(req: Request) {
     where device_id = ${device_id}
     limit 1
   `;
-
   const devRows = toArray<AnyRow>(devQ);
   const device = devRows[0] ?? null;
 
-  // 2) Load measurements from REAL table (results)
-  const measQ = await sql`
+  // Pull most recent results
+  const resQ = await sql`
     select
       id,
       device_id,
       ts as ts_utc,
       url,
-      latency_ms,
-      success,
-      error
+      latency_ms as http_ms,
+      case when success then null else coalesce(error,'') end as http_err,
+      success
     from results
     where device_id = ${device_id}
-      and ts >= now() - (${window_minutes} || ' minutes')::interval
+      and ts >= (now() at time zone 'utc') - (${window_minutes} || ' minutes')::interval
     order by ts desc
     limit ${limit}
   `;
-
-  const measurements = toArray<AnyRow>(measQ);
+  const measurements = toArray<AnyRow>(resQ);
 
   return NextResponse.json({
     ok: true,
