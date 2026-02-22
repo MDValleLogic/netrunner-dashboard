@@ -7,7 +7,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type AnyRow = Record<string, any>;
-
 function toArray<T = AnyRow>(q: unknown): T[] {
   if (!q) return [];
   if (Array.isArray(q)) return q as T[];
@@ -26,60 +25,63 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const device_id = searchParams.get("device_id") || "pi-001";
-  const metric = (searchParams.get("metric") || "http") === "dns" ? "dns" : "http";
-  const window_minutes = Math.min(parseInt(searchParams.get("window_minutes") || "15", 10) || 15, 240);
-  const bucket_seconds = Math.min(parseInt(searchParams.get("bucket_seconds") || "10", 10) || 10, 300);
 
-  const metricCol = metric === "dns" ? sql`dns_ms` : sql`http_ms`;
+  // window_minutes controls time span, bucket_seconds controls granularity
+  const window_minutes = Math.min(parseInt(searchParams.get("window_minutes") || "360", 10) || 360, 10080); // up to 7d
+  const bucket_seconds = Math.min(parseInt(searchParams.get("bucket_seconds") || "60", 10) || 60, 3600); // 1m..1h
 
-  const top = await sql`
-    select url, count(*)::int as n
-    from measurements
-    where device_id = ${device_id}
-      and ts_utc >= (now() at time zone 'utc') - (${window_minutes} || ' minutes')::interval
-    group by url
-    order by n desc
-    limit 5
-  `;
+  // Optional url filter
+  const url = (searchParams.get("url") || "").trim();
 
-  const topRows = toArray<AnyRow>(top);
-  const urls = topRows.map((r) => r.url as string).filter(Boolean);
-
-  if (urls.length === 0) {
-    return NextResponse.json({ ok: true, device_id, metric, window_minutes, bucket_seconds, urls: [], points: [] });
-  }
-
+  // Bucket by time and compute avg latency for successful probes
   const q = await sql`
     with base as (
-      select url, ts_utc, ${metricCol} as v
-      from measurements
-      where device_id = ${device_id}
-        and url = any(${urls})
-        and ts_utc >= (now() at time zone 'utc') - (${window_minutes} || ' minutes')::interval
-        and ${metricCol} is not null
-    ),
-    buck as (
       select
-        url,
-        to_timestamp(floor(extract(epoch from ts_utc) / ${bucket_seconds}) * ${bucket_seconds}) at time zone 'utc' as bucket_utc,
-        avg(v)::float as v
+        ts,
+        latency_ms,
+        success,
+        url
+      from results
+      where device_id = ${device_id}
+        and ts >= (now() at time zone 'utc') - (${window_minutes} || ' minutes')::interval
+        ${url ? sql`and url = ${url}` : sql``}
+    ),
+    bucketed as (
+      select
+        to_timestamp(floor(extract(epoch from ts) / ${bucket_seconds}) * ${bucket_seconds}) at time zone 'utc' as bucket_ts,
+        avg(case when success then latency_ms end) as avg_latency_ms,
+        count(*) as samples,
+        sum(case when success then 1 else 0 end) as ok_samples,
+        sum(case when success then 0 else 1 end) as fail_samples
       from base
-      group by url, bucket_utc
+      group by 1
+      order by 1
     )
-    select url, bucket_utc as ts_utc, v
-    from buck
-    order by ts_utc asc
+    select
+      bucket_ts as ts_utc,
+      avg_latency_ms,
+      samples,
+      ok_samples,
+      fail_samples
+    from bucketed
   `;
 
-  const points = toArray<AnyRow>(q);
+  const rows = toArray<AnyRow>(q);
+
+  const points = rows.map((r) => ({
+    ts_utc: r.ts_utc,
+    avg_latency_ms: r.avg_latency_ms === null ? null : Number(r.avg_latency_ms),
+    samples: Number(r.samples || 0),
+    ok_samples: Number(r.ok_samples || 0),
+    fail_samples: Number(r.fail_samples || 0),
+  }));
 
   return NextResponse.json({
     ok: true,
     device_id,
-    metric,
     window_minutes,
     bucket_seconds,
-    urls,
+    url: url || null,
     points,
     fetched_at_utc: new Date().toISOString(),
   });
