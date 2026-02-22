@@ -11,7 +11,7 @@ type HeartbeatBody = {
   hostname?: string;
   ip?: string;
   claimed?: boolean;
-  tenant_id?: string | null; // UUID in DB, but clients may send "" / null
+  tenant_id?: string | null; // ignored for security; server is source of truth
   mode?: string;
   claim_code_sha256?: string;
 };
@@ -34,7 +34,6 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as HeartbeatBody;
   } catch {
-    // allow empty/invalid json; we still want to upsert last_seen
     body = {};
   }
 
@@ -44,18 +43,10 @@ export async function POST(req: Request) {
   const ip = asString(body.ip).trim() || null;
   const mode = asString(body.mode).trim() || null;
 
-  const claimed = asBool(body.claimed);
-
-  // IMPORTANT: tenant_id is UUID in DB. Empty string must become NULL.
-  const tenantIdRaw = asString(body.tenant_id).trim();
-  const tenantId = tenantIdRaw.length > 0 ? tenantIdRaw : null;
+  // Device may say claimed=true, but we will NEVER allow claimed=false to override DB.
+  const claimedFromDevice = asBool(body.claimed);
 
   const claimCodeSha256 = asString(body.claim_code_sha256).trim() || null;
-
-  // We want device_key_hash to be present (NOT NULL) for inserts.
-  // If your schema requires it, compute from the presented key header.
-  const presentedKey = req.headers.get("x-device-key") || "";
-  const deviceKeyHash = presentedKey ? presentedKey : null; // (If you hash elsewhere, swap this.)
 
   try {
     await sql`
@@ -65,10 +56,8 @@ export async function POST(req: Request) {
         hostname,
         ip,
         mode,
-        tenant_id,
         claimed,
-        claim_code_sha256,
-        device_key_hash
+        claim_code_sha256
       )
       values (
         ${deviceId},
@@ -76,10 +65,8 @@ export async function POST(req: Request) {
         ${hostname},
         ${ip},
         ${mode},
-        nullif(${tenantId}, '')::uuid,
-        ${claimed},
-        ${claimCodeSha256},
-        ${deviceKeyHash}
+        ${claimedFromDevice},
+        ${claimCodeSha256}
       )
       on conflict (device_id) do update
       set
@@ -87,19 +74,18 @@ export async function POST(req: Request) {
         hostname = coalesce(excluded.hostname, devices.hostname),
         ip       = coalesce(excluded.ip, devices.ip),
         mode     = coalesce(excluded.mode, devices.mode),
-        tenant_id = coalesce(excluded.tenant_id, devices.tenant_id),
-        claimed   = coalesce(excluded.claimed, devices.claimed),
-        claim_code_sha256 = coalesce(excluded.claim_code_sha256, devices.claim_code_sha256),
-        device_key_hash = coalesce(excluded.device_key_hash, devices.device_key_hash)
+
+        -- Monotonic claim: once claimed in DB, never let heartbeat set it false.
+        claimed   = (devices.claimed OR excluded.claimed),
+
+        claim_code_sha256 = coalesce(excluded.claim_code_sha256, devices.claim_code_sha256)
     `;
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
-    // return the real DB error to speed debugging
     return NextResponse.json(
       { ok: false, error: "server_error", message: String(e?.message || e) },
       { status: 500 }
     );
   }
 }
-
