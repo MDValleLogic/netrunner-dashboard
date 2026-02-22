@@ -7,10 +7,22 @@ import { newDeviceKey, hashDeviceKey } from "@/lib/authDevice";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type AnyRow = Record<string, any>;
+
+function toArray<T = AnyRow>(q: unknown): T[] {
+  if (!q) return [];
+  if (Array.isArray(q)) return q as T[];
+  if (typeof q === "object" && q !== null && "rows" in q) {
+    const rows = (q as { rows?: unknown }).rows;
+    if (Array.isArray(rows)) return rows as T[];
+  }
+  return [];
+}
+
 /**
  * Register or upsert a device.
- * Requires an authenticated session (admin/user in app).
- * Returns the RAW device key only when a new key is generated.
+ * Requires an authenticated session.
+ * Returns the RAW device key (MVP convenience).
  */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -22,7 +34,7 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    // allow empty body; we'll still register with defaults if needed
+    body = {};
   }
 
   const device_id = String(body.device_id ?? "").trim();
@@ -32,13 +44,11 @@ export async function POST(req: Request) {
 
   const name = String(body.name ?? device_id).trim();
 
-  // If caller provides a device_key, use it ONCE, otherwise generate a new one.
-  // Important: we store only the hash.
+  // If caller provides a device_key, use it; otherwise generate.
+  // Store only a hash in DB.
   const rawKey: string = (body.device_key && String(body.device_key).trim()) || newDeviceKey();
   const device_key_hash = hashDeviceKey(rawKey);
 
-  // NOTE: tenant_id is intentionally NOT set here for MVP unless you want it.
-  // Claim flow should bind tenant_id.
   const q = await sql`
     insert into devices (device_id, name, device_key_hash, status, created_at, updated_at)
     values (${device_id}, ${name}, ${device_key_hash}, 'active', now(), now())
@@ -50,12 +60,9 @@ export async function POST(req: Request) {
     returning device_id
   `;
 
-  const inserted =
-    Array.isArray(q) ? q[0]?.device_id :
-    (q as any)?.rows?.[0]?.device_id ?? device_id;
+  const rows = toArray<{ device_id: string }>(q);
+  const inserted = rows[0]?.device_id ?? device_id;
 
-  // For security: only return the raw key when explicitly requested or when you generate it.
-  // MVP: return it always for now so you can provision the Pi easily.
   return NextResponse.json({
     ok: true,
     device_id: inserted,
