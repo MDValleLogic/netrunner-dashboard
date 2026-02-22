@@ -9,12 +9,7 @@ export const dynamic = "force-dynamic";
 type AnyRow = Record<string, any>;
 
 /**
- * neon/sql can return different shapes depending on driver/version:
- * - Array of rows: Record<string, any>[]
- * - Array of arrays: any[][]
- * - FullQueryResults<T> with a .rows property
- *
- * Normalize to a simple array.
+ * Normalize neon/sql results to simple array.
  */
 function toArray<T = AnyRow>(q: unknown): T[] {
   if (!q) return [];
@@ -29,17 +24,28 @@ function toArray<T = AnyRow>(q: unknown): T[] {
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: "unauthorized" },
+      { status: 401 }
+    );
   }
 
   const { searchParams } = new URL(req.url);
 
-  // Defaults are safe for MVP/demo
-  const device_id = searchParams.get("device_id") || "pi-001";
-  const limit = Math.min(parseInt(searchParams.get("limit") || "100", 10) || 100, 500);
-  const window_minutes = Math.min(parseInt(searchParams.get("window_minutes") || "60", 10) || 60, 1440);
+  const device_id =
+    searchParams.get("device_id") || "pi-001";
 
-  // 1) Device record (optional)
+  const limit = Math.min(
+    parseInt(searchParams.get("limit") || "100", 10) || 100,
+    500
+  );
+
+  const window_minutes = Math.min(
+    parseInt(searchParams.get("window_minutes") || "60", 10) || 60,
+    1440
+  );
+
+  // 1) Load device
   const devQ = await sql`
     select
       device_id,
@@ -54,25 +60,27 @@ export async function GET(req: Request) {
     where device_id = ${device_id}
     limit 1
   `;
+
   const devRows = toArray<AnyRow>(devQ);
   const device = devRows[0] ?? null;
 
-  // 2) Most recent measurements (last N within window)
+  // 2) Load measurements from REAL table (results)
   const measQ = await sql`
     select
       id,
       device_id,
-      ts_utc,
+      ts as ts_utc,
       url,
-      dns_ms,
-      http_ms,
-      http_err
-    from measurements
+      latency_ms,
+      success,
+      error
+    from results
     where device_id = ${device_id}
-      and ts_utc >= (now() at time zone 'utc') - (${window_minutes} || ' minutes')::interval
-    order by ts_utc desc
+      and ts >= now() - (${window_minutes} || ' minutes')::interval
+    order by ts desc
     limit ${limit}
   `;
+
   const measurements = toArray<AnyRow>(measQ);
 
   return NextResponse.json({
@@ -85,4 +93,3 @@ export async function GET(req: Request) {
     fetched_at_utc: new Date().toISOString(),
   });
 }
-
