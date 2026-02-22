@@ -6,12 +6,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type HeartbeatBody = {
-  device_id?: string;
-  ts_utc?: string;
   hostname?: string;
   ip?: string;
   claimed?: boolean;
-  tenant_id?: string | null; // ignored for security; server is source of truth
+  tenant_id?: string | null; // ignored
   mode?: string;
   claim_code_sha256?: string;
 };
@@ -19,7 +17,6 @@ type HeartbeatBody = {
 function asString(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
-
 function asBool(v: unknown): boolean {
   return v === true || v === "true";
 }
@@ -43,45 +40,38 @@ export async function POST(req: Request) {
   const ip = asString(body.ip).trim() || null;
   const mode = asString(body.mode).trim() || null;
 
-  // Device may say claimed=true, but we will NEVER allow claimed=false to override DB.
+  // Device can report claimed=true, but never allow claimed=false to override DB.
   const claimedFromDevice = asBool(body.claimed);
 
   const claimCodeSha256 = asString(body.claim_code_sha256).trim() || null;
 
   try {
-    await sql`
-      insert into devices (
-        device_id,
-        last_seen,
-        hostname,
-        ip,
-        mode,
-        claimed,
-        claim_code_sha256
-      )
-      values (
-        ${deviceId},
-        now(),
-        ${hostname},
-        ${ip},
-        ${mode},
-        ${claimedFromDevice},
-        ${claimCodeSha256}
-      )
-      on conflict (device_id) do update
+    const r = await sql`
+      update devices
       set
         last_seen = now(),
-        hostname = coalesce(excluded.hostname, devices.hostname),
-        ip       = coalesce(excluded.ip, devices.ip),
-        mode     = coalesce(excluded.mode, devices.mode),
-
-        -- Monotonic claim: once claimed in DB, never let heartbeat set it false.
-        claimed   = (devices.claimed OR excluded.claimed),
-
-        claim_code_sha256 = coalesce(excluded.claim_code_sha256, devices.claim_code_sha256)
+        hostname = coalesce(${hostname}, hostname),
+        ip       = coalesce(${ip}, ip),
+        mode     = coalesce(${mode}, mode),
+        claimed  = (claimed OR ${claimedFromDevice}),
+        claim_code_sha256 = coalesce(${claimCodeSha256}, claim_code_sha256),
+        updated_at = now()
+      where device_id = ${deviceId}
+      returning device_id
     `;
 
-    return NextResponse.json({ ok: true });
+    const updated =
+      Array.isArray(r) ? r[0]?.device_id :
+      (r as any)?.rows?.[0]?.device_id ?? null;
+
+    if (!updated) {
+      return NextResponse.json(
+        { ok: false, error: "device_not_registered", device_id: deviceId },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json({ ok: true, device_id: deviceId });
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: "server_error", message: String(e?.message || e) },
