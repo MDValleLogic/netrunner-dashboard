@@ -3,206 +3,244 @@
 import { useEffect, useState } from "react";
 
 type Config = {
-  device_id: string;
   urls: string[];
   interval_seconds: number;
-  updated_at: string | null;
+  updated_at?: string | null;
 };
 
-export default function WebRunnerConfig() {
-  const [deviceId, setDeviceId] = useState("pi-001");
-  const [urlsText, setUrlsText] = useState("");
-  const [interval, setInterval] = useState(300);
+const INTERVAL_OPTIONS = [
+  { value: 60,   label: "Every 1 minute"  },
+  { value: 300,  label: "Every 5 minutes" },
+  { value: 600,  label: "Every 10 minutes"},
+  { value: 1800, label: "Every 30 minutes"},
+  { value: 3600, label: "Every 1 hour"    },
+];
+
+const CHART_COLORS = ["#2563eb","#16a34a","#ea580c","#7c3aed","#dc2626"];
+
+export default function ConfigPage() {
+  const [deviceId, setDeviceId]   = useState("pi-001");
+  const [devices, setDevices]     = useState<string[]>([]);
+  const [urls, setUrls]           = useState<string[]>([]);
+  const [newUrl, setNewUrl]       = useState("");
+  const [interval, setIntervalS]  = useState(300);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [msg, setMsg]             = useState<{ type: "success"|"error"; text: string } | null>(null);
 
-  async function safeJson(res: Response) {
-    const text = await res.text();
-    if (!text) return {};
-    try {
-      return JSON.parse(text);
-    } catch {
-      return { ok: false, error: "non_json_response", raw: text.slice(0, 300) };
-    }
-  }
+  // Load devices
+  useEffect(() => {
+    fetch("/api/devices")
+      .then(r => r.json())
+      .then(j => {
+        if (j?.ok && Array.isArray(j.devices) && j.devices.length > 0) {
+          const ids = j.devices.map((d: any) => d.device_id);
+          setDevices(ids);
+          setDeviceId(ids[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
-  async function load() {
+  // Load config when device changes
+  useEffect(() => {
+    if (!deviceId) return;
+    loadConfig();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceId]);
+
+  async function loadConfig() {
     setLoading(true);
-    setErr("");
-    setMsg("");
+    setMsg(null);
     try {
-      const r = await fetch(`/api/webrunner/config?device_id=${encodeURIComponent(deviceId)}`, {
-        cache: "no-store",
-      });
-      const j: any = await safeJson(r);
-      if (!r.ok || !j.ok) {
-        setErr(j.error || j.raw || `HTTP ${r.status}`);
-        return;
+      const r = await fetch(`/api/webrunner/config?device_id=${encodeURIComponent(deviceId)}`, { cache: "no-store" });
+      const j = await r.json();
+      if (j?.ok && j.config) {
+        setUrls(j.config.urls ?? []);
+        setIntervalS(j.config.interval_seconds ?? 300);
+        setUpdatedAt(j.config.updated_at ?? null);
       }
-
-      const cfg: Config = j.config;
-      setInterval(cfg.interval_seconds ?? 300);
-      setUrlsText((cfg.urls ?? []).join("\n"));
-      setUpdatedAt(cfg.updated_at ?? null);
     } catch (e: any) {
-      setErr(String(e?.message || e));
+      setMsg({ type: "error", text: String(e?.message ?? e) });
     } finally {
       setLoading(false);
     }
   }
 
-  async function save() {
-    setLoading(true);
-    setErr("");
-    setMsg("");
-
-    // NOTE: do not clear the textarea on save; preserve user input
-    const urls = urlsText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
+  async function saveConfig() {
+    setSaving(true);
+    setMsg(null);
     try {
       const r = await fetch("/api/webrunner/config", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          device_id: deviceId,
-          urls,
-          interval_seconds: interval,
-        }),
+        body: JSON.stringify({ device_id: deviceId, urls, interval_seconds: interval }),
       });
-
-      const j: any = await safeJson(r);
-      if (!r.ok || !j.ok) {
-        setErr(j.error || j.raw || `HTTP ${r.status}`);
-        return;
+      const j = await r.json();
+      if (!j.ok) {
+        setMsg({ type: "error", text: j.error || "Save failed" });
+      } else {
+        setUrls(j.config.urls ?? urls);
+        setIntervalS(j.config.interval_seconds ?? interval);
+        setUpdatedAt(j.config.updated_at ?? null);
+        setMsg({ type: "success", text: `Saved ${j.config.urls?.length ?? 0} URL(s) · interval ${j.config.interval_seconds}s. Pi will pick up on next cycle.` });
       }
-
-      const cfg: Config = j.config;
-      setInterval(cfg.interval_seconds ?? interval);
-      setUrlsText((cfg.urls ?? []).join("\n"));
-      setUpdatedAt(cfg.updated_at ?? null);
-
-      setMsg(`Saved: ${cfg.urls?.length ?? 0} URL(s), interval ${cfg.interval_seconds}s. Pi will pick it up next cycle.`);
     } catch (e: any) {
-      setErr(String(e?.message || e));
+      setMsg({ type: "error", text: String(e?.message ?? e) });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  function addUrl() {
+    const u = newUrl.trim();
+    if (!u) return;
+    const full = u.startsWith("http") ? u : `https://${u}`;
+    if (urls.includes(full) || urls.length >= 20) return;
+    setUrls(prev => [...prev, full]);
+    setNewUrl("");
+  }
+
+  function removeUrl(u: string) {
+    setUrls(prev => prev.filter(x => x !== u));
+  }
 
   return (
-    <div style={{ padding: 24, maxWidth: 920 }}>
-      <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>WebRunner Config</h1>
-      <div style={{ marginTop: 6, opacity: 0.75 }}>
-        Authenticated admin control of URL list + interval.
+    <>
+      {/* Topbar */}
+      <div className="vl-topbar">
+        <div>
+          <div className="vl-topbar-title">WebRunner Config</div>
+          <div className="vl-topbar-sub">Manage URLs and test intervals for your Pi</div>
+        </div>
+        <div className="vl-topbar-spacer" />
+        {updatedAt && (
+          <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+            Last saved {new Date(updatedAt).toLocaleString()}
+          </span>
+        )}
       </div>
 
-      <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ opacity: 0.75 }}>Device</span>
-          <input
-            value={deviceId}
-            onChange={(e) => setDeviceId(e.target.value)}
-            style={input}
-            spellCheck={false}
-          />
-        </label>
+      <div className="vl-main" style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 860 }}>
 
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span style={{ opacity: 0.75 }}>Interval (sec)</span>
-          <input
-            value={interval}
-            onChange={(e) => setInterval(parseInt(e.target.value || "300", 10) || 300)}
-            style={{ ...input, width: 120 }}
-            inputMode="numeric"
-          />
-        </label>
+        {/* Device + Interval */}
+        <div className="vl-card">
+          <div className="vl-card-header">
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Device Settings</span>
+            {loading && <span style={{ fontSize: 12, color: "var(--text-dim)" }}>Loading…</span>}
+          </div>
+          <div className="vl-card-body">
+            <div className="vl-grid-2">
+              <div>
+                <label className="vl-label">Device</label>
+                <select className="vl-select" value={deviceId} onChange={e => setDeviceId(e.target.value)}>
+                  {devices.length === 0
+                    ? <option value="pi-001">pi-001</option>
+                    : devices.map(d => <option key={d} value={d}>{d}</option>)
+                  }
+                </select>
+              </div>
+              <div>
+                <label className="vl-label">Test Interval</label>
+                <select className="vl-select" value={interval} onChange={e => setIntervalS(Number(e.target.value))}>
+                  {INTERVAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 5 }}>
+                  Pi will run all URLs every {interval < 60 ? `${interval}s` : interval < 3600 ? `${interval/60}m` : `${interval/3600}h`}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <button onClick={load} style={btn} disabled={loading}>
-          {loading ? "…" : "Reload"}
-        </button>
+        {/* URL management */}
+        <div className="vl-card">
+          <div className="vl-card-header">
+            <span style={{ fontSize: 13, fontWeight: 600 }}>URLs to Monitor</span>
+            <span style={{ fontSize: 12, color: "var(--text-dim)" }}>{urls.length} / 20 URLs</span>
+          </div>
+          <div className="vl-card-body">
 
-        <button onClick={save} style={{ ...btn, fontWeight: 800 }} disabled={loading}>
-          {loading ? "Saving…" : "Save"}
-        </button>
+            {/* Add URL */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <input
+                className="vl-input"
+                type="text"
+                placeholder="https://example.com or example.com"
+                value={newUrl}
+                onChange={e => setNewUrl(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addUrl()}
+              />
+              <button className="vl-btn vl-btn-ghost" onClick={addUrl} disabled={urls.length >= 20}>
+                + Add
+              </button>
+            </div>
+
+            {/* URL list */}
+            {urls.length === 0 ? (
+              <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-dim)", fontSize: 13 }}>
+                No URLs configured. Add URLs above — the Pi will start monitoring them on the next cycle.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {urls.map((u, i) => (
+                  <div key={u} className="vl-url-tag" style={{ padding: "10px 14px" }}>
+                    <div className="vl-url-dot" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    <span className="vl-url-label" title={u} style={{ fontSize: 13 }}>{u}</span>
+                    <button
+                      className="vl-btn vl-btn-danger vl-btn-sm"
+                      onClick={() => removeUrl(u)}
+                      style={{ flexShrink: 0 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Alert */}
+        {msg && (
+          <div className={`vl-alert vl-alert-${msg.type === "success" ? "success" : "error"}`}>
+            {msg.type === "success" ? "✓" : "⚠"} {msg.text}
+          </div>
+        )}
+
+        {/* Save */}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            className="vl-btn vl-btn-primary"
+            onClick={saveConfig}
+            disabled={saving || loading}
+            style={{ padding: "11px 28px", fontSize: 14 }}
+          >
+            {saving ? "Saving…" : "Save Config → Push to Pi"}
+          </button>
+          <button
+            className="vl-btn vl-btn-ghost"
+            onClick={loadConfig}
+            disabled={loading || saving}
+          >
+            Reload
+          </button>
+        </div>
+
+        {/* Info box */}
+        <div className="vl-alert vl-alert-info">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
+            <circle cx="7" cy="7" r="6.5" stroke="currentColor" strokeWidth="1.2"/>
+            <path d="M7 6v4M7 4.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          <span>
+            Config is stored in the cloud. Your Pi fetches it automatically on each boot and every test cycle.
+            Changes take effect within one cycle (~{interval}s).
+          </span>
+        </div>
+
       </div>
-
-      <div style={{ marginTop: 10, fontSize: 13, opacity: 0.8 }}>
-        Last updated:{" "}
-        <span style={mono}>{updatedAt ? new Date(updatedAt).toISOString() : "—"}</span>
-      </div>
-
-      {err ? <div style={bad}>{err}</div> : null}
-      {msg ? <div style={ok}>{msg}</div> : null}
-
-      <textarea
-        value={urlsText}
-        onChange={(e) => setUrlsText(e.target.value)}
-        rows={12}
-        placeholder={"One URL per line\nhttps://example.com\nhttps://vallelogic.com"}
-        style={ta}
-        spellCheck={false}
-      />
-
-      <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
-        Tip: include https:// on each line.
-      </div>
-    </div>
+    </>
   );
 }
-
-const input: React.CSSProperties = {
-  padding: "8px 10px",
-  borderRadius: 10,
-  border: "1px solid #ddd",
-  background: "white",
-};
-
-const btn: React.CSSProperties = {
-  padding: "9px 12px",
-  borderRadius: 10,
-  border: "1px solid #ddd",
-  background: "white",
-  cursor: "pointer",
-};
-
-const ta: React.CSSProperties = {
-  marginTop: 12,
-  width: "100%",
-  padding: 12,
-  borderRadius: 12,
-  border: "1px solid #eee",
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-  fontSize: 13,
-};
-
-const bad: React.CSSProperties = {
-  marginTop: 14,
-  padding: 12,
-  borderRadius: 12,
-  border: "1px solid #ffd0d0",
-  background: "#fff3f3",
-  whiteSpace: "pre-wrap",
-};
-
-const ok: React.CSSProperties = {
-  marginTop: 14,
-  padding: 12,
-  borderRadius: 12,
-  border: "1px solid #cfead8",
-  background: "#f3fff6",
-  whiteSpace: "pre-wrap",
-};
-
-const mono: React.CSSProperties = {
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-};
