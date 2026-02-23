@@ -1,8 +1,18 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
+// ─── Types ─────────────────────────────────────────────────────────
 type Point = {
   ts_utc: string;
   dns_ms: number;
@@ -18,7 +28,6 @@ type TimeseriesResp = {
   points: number;
   series: Record<string, Point[]>;
   error?: string;
-  details?: any;
 };
 
 type DeviceRow = {
@@ -26,453 +35,487 @@ type DeviceRow = {
   updated_at?: string;
 };
 
-const COLORS = ["#2563eb", "#16a34a", "#f97316", "#a855f7", "#ef4444"];
+// ─── Constants ─────────────────────────────────────────────────────
+const CHART_COLORS = ["#3b82f6", "#10b981", "#f97316", "#a78bfa", "#ef4444"];
+const CHART_COLORS_DIM = [
+  "rgba(59,130,246,0.2)",
+  "rgba(16,185,129,0.2)",
+  "rgba(249,115,22,0.2)",
+  "rgba(167,139,250,0.2)",
+  "rgba(239,68,68,0.2)",
+];
 
+const DEFAULT_URLS = ["https://google.com", "https://cloudflare.com", "https://vallelogic.com"];
+
+const TIME_RANGES = [
+  { value: 60,   label: "Last 1 hr" },
+  { value: 240,  label: "Last 4 hrs" },
+  { value: 1440, label: "Last 24 hrs" },
+];
+
+// ─── Helpers ───────────────────────────────────────────────────────
 function fmtTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  catch { return ""; }
 }
 
-// Convert per-url series into chart rows: { ts_utc, "<url1>": value, "<url2>": value, ... }
-function mergeSeries(series: Record<string, Point[]>, field: "dns_ms" | "http_ms") {
-  const byTs = new Map<string, any>();
+function fmtMs(val: number | undefined | null): string {
+  if (val == null || isNaN(val)) return "—";
+  if (val < 1000) return `${Math.round(val)}ms`;
+  return `${(val / 1000).toFixed(2)}s`;
+}
 
+function mergeSeries(series: Record<string, Point[]>, field: "dns_ms" | "http_ms") {
+  const byTs = new Map<string, Record<string, number>>();
   for (const [url, pts] of Object.entries(series)) {
     for (const p of pts) {
-      const key = p.ts_utc;
-      if (!byTs.has(key)) byTs.set(key, { ts_utc: key });
-      byTs.get(key)[url] = p[field];
+      if (!byTs.has(p.ts_utc)) byTs.set(p.ts_utc, { ts_utc: p.ts_utc as any });
+      byTs.get(p.ts_utc)![url] = p[field];
     }
   }
-
   return Array.from(byTs.values()).sort(
-    (a, b) => new Date(a.ts_utc).getTime() - new Date(b.ts_utc).getTime()
+    (a, b) => new Date(a.ts_utc as any).getTime() - new Date(b.ts_utc as any).getTime()
   );
 }
 
-function normalizeUrl(u: string) {
-  return u.trim();
+function computeStats(series: Record<string, Point[]>) {
+  let totalPoints = 0;
+  let sumDns = 0;
+  let sumHttp = 0;
+  let errCount = 0;
+
+  for (const pts of Object.values(series)) {
+    for (const p of pts) {
+      totalPoints++;
+      sumDns  += p.dns_ms  || 0;
+      sumHttp += p.http_ms || 0;
+      if (p.http_err && p.http_err !== "null" && p.http_err !== "") errCount++;
+    }
+  }
+
+  return {
+    avgDns:    totalPoints ? Math.round(sumDns / totalPoints)  : null,
+    avgHttp:   totalPoints ? Math.round(sumHttp / totalPoints) : null,
+    errCount,
+    totalPoints,
+    errorRate: totalPoints ? ((errCount / totalPoints) * 100).toFixed(1) : null,
+  };
 }
 
-function useBoxSize(defaultH = 280) {
-  const ref = React.useRef<HTMLDivElement | null>(null);
-  const [size, setSize] = useState({ w: 900, h: defaultH });
-
-  useEffect(() => {
-    if (!ref.current) return;
-
-    const el = ref.current;
-
-    const measure = () => {
-      const r = el.getBoundingClientRect();
-      setSize({
-        w: Math.max(1, Math.floor(r.width)),
-        h: Math.max(1, Math.floor(r.height)),
-      });
-    };
-
-    // Initial
-    measure();
-
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(el);
-
-    return () => ro.disconnect();
-  }, []);
-
-  return { ref, w: size.w, h: size.h };
-}
-
-export default function DashboardPage() {
-  // Tenant devices dropdown
-  const [deviceId, setDeviceId] = useState<string>("");
-  const [devices, setDevices] = useState<DeviceRow[]>([]);
-
-  const [sinceMinutes, setSinceMinutes] = useState(60);
-
-  // Source of truth for urls (still stored as text so it’s easy + durable)
-  const [urlsText, setUrlsText] = useState(
-    ["https://google.com", "https://cloudflare.com", "https://vallelogic.com"].join("\n")
-  );
-
-  // Add-URL input
-  const [newUrl, setNewUrl] = useState("");
-
-  // Data + UI state
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<TimeseriesResp | null>(null);
-  const [err, setErr] = useState<string>("");
-
-  // Chart containers
-  const dnsBox = useBoxSize(280);
-  const httpBox = useBoxSize(280);
-
-  // Parsed URL list (max 5)
-  const urls = useMemo(() => {
-    return urlsText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .slice(0, 5);
-  }, [urlsText]);
-
-  const dnsChartData = useMemo(
-    () => (data?.series ? mergeSeries(data.series, "dns_ms") : []),
-    [data]
-  );
-  const httpChartData = useMemo(
-    () => (data?.series ? mergeSeries(data.series, "http_ms") : []),
-    [data]
-  );
-
-  // Load tenant-scoped devices once
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadDevices() {
-      try {
-        const res = await fetch("/api/devices");
-        const json = await res.json();
-
-        if (cancelled) return;
-
-        if (json?.ok && Array.isArray(json.devices)) {
-          setDevices(json.devices);
-
-          // Default to newest device if none selected yet
-          if (!deviceId && json.devices.length > 0) {
-            setDeviceId(json.devices[0].device_id);
-          }
-        }
-      } catch {
-        // ignore for MVP
-      }
-    }
-
-    loadDevices();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function setUrlsList(next: string[]) {
-    const cleaned = next.map(normalizeUrl).filter(Boolean);
-    const uniq = Array.from(new Set(cleaned)).slice(0, 5);
-    setUrlsText(uniq.join("\n"));
-  }
-
-  function addUrl() {
-    const u = normalizeUrl(newUrl);
-    if (!u) return;
-
-    const current = urlsText
-      .split("\n")
-      .map(normalizeUrl)
-      .filter(Boolean);
-
-    if (current.length >= 5) {
-      alert("Max 5 URLs for MVP");
-      return;
-    }
-
-    if (current.includes(u)) {
-      setNewUrl("");
-      return;
-    }
-
-    setUrlsList([...current, u]);
-    setNewUrl("");
-  }
-
-  function deleteUrl(u: string) {
-    const current = urlsText
-      .split("\n")
-      .map(normalizeUrl)
-      .filter(Boolean);
-
-    setUrlsList(current.filter((x) => x !== u));
-  }
-
-  async function load() {
-    setErr("");
-    setLoading(true);
-    setData(null);
-
-    try {
-      if (!deviceId) {
-        setErr("Select a device");
-        return;
-      }
-
-      const qp = new URLSearchParams();
-      qp.set("device_id", deviceId);
-      qp.set("since_minutes", String(sinceMinutes));
-      for (const u of urls) qp.append("urls", u);
-
-      const res = await fetch(`/api/measurements/timeseries?${qp.toString()}`);
-      const json = (await res.json()) as TimeseriesResp;
-
-      if (!json.ok) {
-        setErr(json.error || "Request failed");
-      } else {
-        setData(json);
-      }
-    } catch (e: any) {
-      setErr(String(e?.message ?? e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const chartW1 = Math.max(1, dnsBox.w - 20); // subtract padding
-  const chartH1 = Math.max(1, dnsBox.h - 20);
-  const chartW2 = Math.max(1, httpBox.w - 20);
-  const chartH2 = Math.max(1, httpBox.h - 20);
+// ─── Sub-components ────────────────────────────────────────────────
+function StatTile({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+  accent?: "default" | "green" | "red" | "accent";
+}) {
+  const cls = {
+    default: "",
+    green: "vl-stat-green",
+    red: "vl-stat-red",
+    accent: "vl-stat-accent",
+  }[accent ?? "default"];
 
   return (
-    <div
-      style={{
-        padding: 24,
-        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
-      }}
-    >
-      <h1 style={{ fontSize: 22, marginBottom: 6 }}>NetRunner Dashboard</h1>
-      <div style={{ color: "#666", marginBottom: 18 }}>
-        WebRunner timeline (DNS + HTTP) — MVP
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 16,
-          marginBottom: 16,
-          maxWidth: 900,
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>Device</div>
-
-          <select
-            value={deviceId}
-            onChange={(e) => setDeviceId(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 10,
-              border: "1px solid #ddd",
-              borderRadius: 10,
-              background: "white",
-            }}
-          >
-            {devices.length === 0 ? (
-              <option value="">No devices</option>
-            ) : (
-              devices.map((d) => (
-                <option key={d.device_id} value={d.device_id}>
-                  {d.device_id}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-
-        <div>
-          <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>Time Range</div>
-          <select
-            value={sinceMinutes}
-            onChange={(e) => setSinceMinutes(Number(e.target.value))}
-            style={{
-              width: "100%",
-              padding: 10,
-              border: "1px solid #ddd",
-              borderRadius: 10,
-              background: "white",
-            }}
-          >
-            <option value={60}>Last 60 minutes</option>
-            <option value={240}>Last 4 hours</option>
-            <option value={1440}>Last 24 hours</option>
-          </select>
-        </div>
-
-        {/* URL Management */}
-        <div style={{ gridColumn: "1 / span 2" }}>
-          <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>URLs (max 5)</div>
-
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <input
-              type="text"
-              placeholder="https://example.com"
-              value={newUrl}
-              onChange={(e) => setNewUrl(e.target.value)}
-              style={{
-                flex: 1,
-                padding: 10,
-                border: "1px solid #ddd",
-                borderRadius: 10,
-              }}
-            />
-            <button
-              onClick={addUrl}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 10,
-                border: "1px solid #ddd",
-                background: "white",
-                cursor: "pointer",
-              }}
-            >
-              Add
-            </button>
-          </div>
-
-          <div
-            style={{
-              border: "1px solid #eee",
-              borderRadius: 12,
-              padding: 10,
-              marginBottom: 10,
-            }}
-          >
-            {urls.map((u) => (
-              <div
-                key={u}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "8px 6px",
-                  borderBottom: "1px solid #f3f3f3",
-                }}
-              >
-                <div style={{ fontSize: 13 }}>{u}</div>
-                <button
-                  onClick={() => deleteUrl(u)}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 10,
-                    border: "1px solid #ddd",
-                    background: "white",
-                    cursor: "pointer",
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <textarea
-            value={urlsText}
-            onChange={(e) => setUrlsText(e.target.value)}
-            rows={4}
-            style={{
-              width: "100%",
-              padding: 10,
-              border: "1px solid #ddd",
-              borderRadius: 12,
-              fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas",
-              fontSize: 12,
-            }}
-          />
-        </div>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-        <button
-          onClick={load}
-          disabled={loading || urls.length === 0 || !deviceId}
-          style={{
-            padding: "10px 14px",
-            borderRadius: 10,
-            border: "1px solid #111",
-            background: "#111",
-            color: "white",
-            cursor: "pointer",
-            opacity: loading || urls.length === 0 || !deviceId ? 0.6 : 1,
-          }}
-        >
-          {loading ? "Loading..." : "Load"}
-        </button>
-
-        <div style={{ color: "#666", fontSize: 12 }}>
-          Points in window: {data?.points ?? 0}
-        </div>
-
-        {err ? <div style={{ color: "#b91c1c", fontSize: 12 }}>{err}</div> : null}
-      </div>
-
-      {/* Charts */}
-      <div style={{ maxWidth: 1200 }}>
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 13, color: "#444", marginBottom: 8 }}>DNS time (ms)</div>
-
-          <div
-            ref={dnsBox.ref}
-            style={{
-              height: 280,
-              border: "1px solid #eee",
-              borderRadius: 14,
-              padding: 10,
-              overflow: "hidden",
-            }}
-          >
-            <LineChart width={chartW1} height={chartH1} data={dnsChartData}>
-              <XAxis dataKey="ts_utc" tickFormatter={fmtTime} minTickGap={24} />
-              <YAxis />
-              <Tooltip labelFormatter={(v) => fmtTime(String(v))} />
-              <Legend />
-              {urls.map((u, idx) => (
-                <Line
-                  key={u}
-                  type="monotone"
-                  dataKey={u}
-                  dot={false}
-                  stroke={COLORS[idx % COLORS.length]}
-                  strokeWidth={2}
-                  isAnimationActive={false}
-                />
-              ))}
-            </LineChart>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 13, color: "#444", marginBottom: 8 }}>HTTP time (ms)</div>
-
-          <div
-            ref={httpBox.ref}
-            style={{
-              height: 280,
-              border: "1px solid #eee",
-              borderRadius: 14,
-              padding: 10,
-              overflow: "hidden",
-            }}
-          >
-            <LineChart width={chartW2} height={chartH2} data={httpChartData}>
-              <XAxis dataKey="ts_utc" tickFormatter={fmtTime} minTickGap={24} />
-              <YAxis />
-              <Tooltip labelFormatter={(v) => fmtTime(String(v))} />
-              <Legend />
-              {urls.map((u, idx) => (
-                <Line
-                  key={u}
-                  type="monotone"
-                  dataKey={u}
-                  dot={false}
-                  stroke={COLORS[idx % COLORS.length]}
-                  strokeWidth={2}
-                  isAnimationActive={false}
-                />
-              ))}
-            </LineChart>
-          </div>
-        </div>
-      </div>
+    <div className="vl-stat">
+      <div className="vl-stat-label">{label}</div>
+      <div className={`vl-stat-value ${cls}`}>{value}</div>
+      {sub && <div className="vl-stat-sub">{sub}</div>}
     </div>
   );
 }
 
+function UrlTag({
+  url,
+  colorIdx,
+  onDelete,
+}: {
+  url: string;
+  colorIdx: number;
+  onDelete: () => void;
+}) {
+  const short = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  return (
+    <div className="vl-url-tag">
+      <div className="vl-url-dot" style={{ background: CHART_COLORS[colorIdx % CHART_COLORS.length] }} />
+      <span className="vl-url-label" title={url}>{short}</span>
+      <button className="vl-btn vl-btn-danger vl-btn-sm" onClick={onDelete}>✕</button>
+    </div>
+  );
+}
+
+// Custom chart tooltip
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: "var(--bg-overlay)",
+      border: "1px solid var(--border-bright)",
+      borderRadius: "var(--r-md)",
+      padding: "10px 14px",
+      fontSize: 12,
+      fontFamily: "var(--font-mono)",
+    }}>
+      <div style={{ color: "var(--text-dim)", marginBottom: 6, fontSize: 10 }}>
+        {fmtTime(String(label))}
+      </div>
+      {payload.map((entry: any) => (
+        <div key={entry.dataKey} style={{ color: entry.color, marginBottom: 2 }}>
+          {entry.dataKey.replace(/^https?:\/\//, "").slice(0, 28)}: <strong>{fmtMs(entry.value)}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────
+export default function DashboardPage() {
+  const [deviceId, setDeviceId]       = useState("");
+  const [devices, setDevices]         = useState<DeviceRow[]>([]);
+  const [sinceMinutes, setSince]      = useState(60);
+  const [urls, setUrls]               = useState<string[]>(DEFAULT_URLS);
+  const [newUrl, setNewUrl]           = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [data, setData]               = useState<TimeseriesResp | null>(null);
+  const [err, setErr]                 = useState("");
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Load devices
+  useEffect(() => {
+    fetch("/api/devices")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.ok && Array.isArray(j.devices)) {
+          setDevices(j.devices);
+          if (!deviceId && j.devices.length > 0) setDeviceId(j.devices[0].device_id);
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const load = useCallback(async () => {
+    if (!deviceId || urls.length === 0) return;
+    setErr("");
+    setLoading(true);
+    try {
+      const qp = new URLSearchParams();
+      qp.set("device_id", deviceId);
+      qp.set("since_minutes", String(sinceMinutes));
+      for (const u of urls) qp.append("urls", u);
+      const res  = await fetch(`/api/measurements/timeseries?${qp}`);
+      const json = (await res.json()) as TimeseriesResp;
+      if (!json.ok) { setErr(json.error || "Request failed"); }
+      else { setData(json); setLastFetched(new Date()); }
+    } catch (e: any) {
+      setErr(e?.message ?? String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [deviceId, urls, sinceMinutes]);
+
+  // Auto-refresh
+  useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (autoRefresh) {
+      timerRef.current = setInterval(load, 30_000);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [autoRefresh, load]);
+
+  function addUrl() {
+    const u = newUrl.trim();
+    if (!u || urls.includes(u) || urls.length >= 5) return;
+    setUrls((prev) => [...prev, u]);
+    setNewUrl("");
+  }
+
+  const dnsData  = useMemo(() => data?.series ? mergeSeries(data.series, "dns_ms")  : [], [data]);
+  const httpData = useMemo(() => data?.series ? mergeSeries(data.series, "http_ms") : [], [data]);
+  const stats    = useMemo(() => data?.series ? computeStats(data.series) : null, [data]);
+
+  // ─── Render ──────────────────────────────────────────────────────
+  return (
+    <>
+      {/* Top bar */}
+      <div className="vl-topbar">
+        <div>
+          <div className="vl-topbar-title">Overview</div>
+          <div className="vl-topbar-sub">DNS &amp; HTTP latency · multi-URL</div>
+        </div>
+        <div className="vl-topbar-spacer" />
+        {lastFetched && (
+          <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+            Updated {lastFetched.toLocaleTimeString()}
+          </span>
+        )}
+        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={autoRefresh}
+            onChange={(e) => setAutoRefresh(e.target.checked)}
+            style={{ accentColor: "var(--accent)" }}
+          />
+          Auto (30s)
+        </label>
+      </div>
+
+      {/* Page body */}
+      <div className="vl-main" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+        {/* ── Stat tiles ─────────────────────────────────────────── */}
+        <div className="vl-grid-4">
+          <StatTile
+            label="Avg DNS"
+            value={stats ? fmtMs(stats.avgDns) : "—"}
+            sub="across all URLs"
+            accent={stats && stats.avgDns != null && stats.avgDns > 200 ? "red" : "green"}
+          />
+          <StatTile
+            label="Avg HTTP"
+            value={stats ? fmtMs(stats.avgHttp) : "—"}
+            sub="response time"
+            accent={stats && stats.avgHttp != null && stats.avgHttp > 500 ? "red" : "default"}
+          />
+          <StatTile
+            label="Error Rate"
+            value={stats ? `${stats.errorRate}%` : "—"}
+            sub={stats ? `${stats.errCount} failures` : ""}
+            accent={stats && stats.errCount > 0 ? "red" : "green"}
+          />
+          <StatTile
+            label="Data Points"
+            value={stats ? String(stats.totalPoints) : "—"}
+            sub={`in last ${sinceMinutes < 60 ? sinceMinutes + "m" : sinceMinutes / 60 + "h"}`}
+            accent="accent"
+          />
+        </div>
+
+        {/* ── Controls ───────────────────────────────────────────── */}
+        <div className="vl-card">
+          <div className="vl-card-header">
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Query Settings</span>
+            {err && <span style={{ fontSize: 12, color: "var(--red)" }}>⚠ {err}</span>}
+          </div>
+          <div className="vl-card-body">
+            <div className="vl-grid-2" style={{ marginBottom: 16 }}>
+              <div>
+                <label className="vl-label">Device</label>
+                <select className="vl-select" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
+                  {devices.length === 0 ? (
+                    <option value="">No devices registered</option>
+                  ) : (
+                    devices.map((d) => (
+                      <option key={d.device_id} value={d.device_id}>{d.device_id}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+              <div>
+                <label className="vl-label">Time Window</label>
+                <select className="vl-select" value={sinceMinutes} onChange={(e) => setSince(Number(e.target.value))}>
+                  {TIME_RANGES.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* URL management */}
+            <label className="vl-label">URLs to Monitor <span style={{ color: "var(--text-dim)" }}>({urls.length}/5)</span></label>
+
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <input
+                className="vl-input"
+                type="text"
+                placeholder="https://example.com"
+                value={newUrl}
+                onChange={(e) => setNewUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addUrl()}
+              />
+              <button
+                className="vl-btn vl-btn-ghost"
+                onClick={addUrl}
+                disabled={urls.length >= 5}
+              >
+                + Add
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {urls.map((u, i) => (
+                <UrlTag key={u} url={u} colorIdx={i} onDelete={() => setUrls((prev) => prev.filter((x) => x !== u))} />
+              ))}
+            </div>
+
+            <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
+              <button
+                className="vl-btn vl-btn-primary"
+                onClick={load}
+                disabled={loading || urls.length === 0 || !deviceId}
+              >
+                {loading ? (
+                  <>
+                    <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>◌</span>
+                    Loading...
+                  </>
+                ) : "▶  Run Query"}
+              </button>
+              {data && (
+                <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+                  {data.points} pts · {urls.length} URLs
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Charts ─────────────────────────────────────────────── */}
+        {(dnsData.length > 0 || httpData.length > 0) && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+            {/* DNS Chart */}
+            <div className="vl-card">
+              <div className="vl-card-header">
+                <span style={{ fontSize: 13, fontWeight: 600 }}>DNS Latency</span>
+                <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>milliseconds</span>
+              </div>
+              <div className="vl-card-body">
+                <div className="vl-chart-wrap">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={dnsData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+                      <CartesianGrid strokeDasharray="2 4" stroke="var(--border-dim)" />
+                      <XAxis
+                        dataKey="ts_utc"
+                        tickFormatter={fmtTime}
+                        minTickGap={48}
+                        tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
+                        axisLine={{ stroke: "var(--border-mid)" }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => `${v}ms`}
+                        width={52}
+                      />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend
+                        formatter={(val) => (
+                          <span style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
+                            {val.replace(/^https?:\/\//, "")}
+                          </span>
+                        )}
+                      />
+                      {urls.map((u, idx) => (
+                        <Line
+                          key={u}
+                          type="monotone"
+                          dataKey={u}
+                          stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                          strokeWidth={2}
+                          dot={false}
+                          isAnimationActive={false}
+                          activeDot={{ r: 4, fill: CHART_COLORS[idx % CHART_COLORS.length] }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* HTTP Chart */}
+            <div className="vl-card">
+              <div className="vl-card-header">
+                <span style={{ fontSize: 13, fontWeight: 600 }}>HTTP Response Time</span>
+                <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>milliseconds</span>
+              </div>
+              <div className="vl-card-body">
+                <div className="vl-chart-wrap">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={httpData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+                      <CartesianGrid strokeDasharray="2 4" stroke="var(--border-dim)" />
+                      <XAxis
+                        dataKey="ts_utc"
+                        tickFormatter={fmtTime}
+                        minTickGap={48}
+                        tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
+                        axisLine={{ stroke: "var(--border-mid)" }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => `${v}ms`}
+                        width={52}
+                      />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend
+                        formatter={(val) => (
+                          <span style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
+                            {val.replace(/^https?:\/\//, "")}
+                          </span>
+                        )}
+                      />
+                      {urls.map((u, idx) => (
+                        <Line
+                          key={u}
+                          type="monotone"
+                          dataKey={u}
+                          stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                          strokeWidth={2}
+                          dot={false}
+                          isAnimationActive={false}
+                          activeDot={{ r: 4, fill: CHART_COLORS[idx % CHART_COLORS.length] }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Empty state ─────────────────────────────────────────── */}
+        {!data && !loading && (
+          <div className="vl-card">
+            <div className="vl-empty">
+              <div style={{ fontSize: 32, marginBottom: 10 }}>◎</div>
+              <div style={{ fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6 }}>No data loaded</div>
+              <div>Select a device, set your time window, and click <strong style={{ color: "var(--accent)" }}>Run Query</strong></div>
+            </div>
+          </div>
+        )}
+
+        {loading && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {[280, 280].map((h, i) => (
+              <div key={i} className="vl-card">
+                <div className="vl-card-header"><div className="vl-shimmer" style={{ width: 120, height: 14 }} /></div>
+                <div className="vl-card-body">
+                  <div className="vl-shimmer" style={{ height: h }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+      </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+    </>
+  );
+}

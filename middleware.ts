@@ -15,7 +15,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // ✅ DEVICE PLANE — MUST BE PUBLIC
+  // ✅ DEVICE PLANE — MUST BE PUBLIC (probe calls these)
   if (
     pathname.startsWith("/v1/") ||
     pathname === "/api/heartbeat" ||
@@ -41,4 +41,3 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: ["/((?!_next).*)"],
 };
-

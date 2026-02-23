@@ -10,11 +10,14 @@ type AnyRow = Record<string, any>;
 type IngestBody = {
   ts_utc?: string;
   url?: string;
-  dns_ms?: number;
-  http_ms?: number;
+
+  // new-ish payload from probe
+  dns_ms?: number | string | null;
+  http_ms?: number | string | null;
   http_err?: string | null;
 
-  latency_ms?: number;
+  // legacy / alternate fields
+  latency_ms?: number | string | null;
   success?: boolean;
   error?: string | null;
 };
@@ -34,70 +37,68 @@ function toArray<T = AnyRow>(q: unknown): T[] {
 
 function asNumber(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
-    return Number(v);
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (s !== "" && Number.isFinite(Number(s))) return Number(s);
   }
   return null;
 }
 
+function asInt(v: unknown): number | null {
+  const n = asNumber(v);
+  if (n === null) return null;
+  // results.latency_ms and results.dns_ms are integer in DB
+  return Math.round(n);
+}
+
 export async function POST(req: Request) {
   try {
-    // 1️⃣ Verify device headers
+    // 1) Verify device headers
     const v = await verifyDevice(req);
     if (!v.ok) {
-      return NextResponse.json(
-        { ok: false, error: "unauthorized_device" },
-        { status: 401 }
-      );
+      return NextResponse.json({ ok: false, error: "unauthorized_device" }, { status: 401 });
     }
-
     const deviceId = v.deviceId;
 
-    // 2️⃣ Parse JSON body
+    // 2) Parse JSON body
     let body: IngestBody;
     try {
       body = (await req.json()) as IngestBody;
     } catch {
-      return NextResponse.json(
-        { ok: false, error: "invalid_json" },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
     }
 
     const url = (body.url ?? "").trim();
     if (!url) {
-      return NextResponse.json(
-        { ok: false, error: "url_required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "url_required" }, { status: 400 });
     }
 
-    // 3️⃣ Determine timestamp
+    // 3) Determine timestamp
     const ts = body.ts_utc ? new Date(body.ts_utc) : new Date();
     if (Number.isNaN(ts.getTime())) {
-      return NextResponse.json(
-        { ok: false, error: "invalid_ts_utc" },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "invalid_ts_utc" }, { status: 400 });
     }
 
-    // 4️⃣ Map latency
+    // 4) Map latency (HTTP) -> integer ms
     const latency_ms =
-      asNumber(body.latency_ms) ??
-      asNumber(body.http_ms);
+      asInt(body.latency_ms) ??
+      asInt(body.http_ms);
 
-    // 5️⃣ Map error
+    // 5) DNS latency -> integer ms (optional)
+    const dns_ms = asInt(body.dns_ms);
+
+    // 6) Map error
     const error =
       (typeof body.error === "string" ? body.error : null) ??
       (typeof body.http_err === "string" ? body.http_err : null);
 
-    // 6️⃣ Determine success
+    // 7) Determine success
     const success =
       typeof body.success === "boolean"
         ? body.success
         : !error;
 
-    // 7️⃣ Load device tenant_id
+    // 8) Load device tenant_id
     const devQ = await sql`
       select device_id, tenant_id, status
       from devices
@@ -108,32 +109,22 @@ export async function POST(req: Request) {
     const device = devRows[0];
 
     if (!device) {
-      return NextResponse.json(
-        { ok: false, error: "device_not_found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ ok: false, error: "device_not_found" }, { status: 404 });
     }
-
     if (!device.tenant_id) {
-      return NextResponse.json(
-        { ok: false, error: "device_missing_tenant" },
-        { status: 409 }
-      );
+      return NextResponse.json({ ok: false, error: "device_missing_tenant" }, { status: 409 });
     }
-
     const tenant_id = device.tenant_id;
 
-    // 8️⃣ Set tenant context for RLS
-    await sql`
-      select set_config('app.tenant_id', ${tenant_id}, true)
-    `;
+    // 9) Set tenant context for RLS
+    await sql`select set_config('app.tenant_id', ${tenant_id}, true)`;
 
-    // 9️⃣ Insert into results
+    // 10) Insert into results (NOW includes dns_ms)
     const ins = await sql`
       insert into results
-        (device_id, ts, url, latency_ms, success, error, tenant_id)
+        (device_id, ts, url, latency_ms, dns_ms, success, error, tenant_id)
       values
-        (${deviceId}, ${ts.toISOString()}, ${url}, ${latency_ms}, ${success}, ${error}, ${tenant_id})
+        (${deviceId}, ${ts.toISOString()}, ${url}, ${latency_ms}, ${dns_ms}, ${success}, ${error}, ${tenant_id})
       returning id
     `;
 
