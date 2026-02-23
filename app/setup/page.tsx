@@ -4,6 +4,7 @@ import { sql } from "@/lib/db";
 import { redirect } from "next/navigation";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 async function hasAnyUsers(): Promise<boolean> {
   const rows = await sql`select 1 from app_users limit 1`;
