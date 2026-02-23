@@ -7,7 +7,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type AnyRow = Record<string, any>;
-
 function toArray<T = AnyRow>(q: unknown): T[] {
   if (!q) return [];
   if (Array.isArray(q)) return q as T[];
@@ -25,44 +24,37 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url);
-  const device_id = searchParams.get("device_id") || "pi-001";
-  const limit = Math.min(parseInt(searchParams.get("limit") || "100", 10) || 100, 500);
+  const device_id     = searchParams.get("device_id") || "pi-001";
+  const limit         = Math.min(parseInt(searchParams.get("limit") || "100", 10) || 100, 500);
   const window_minutes = Math.min(parseInt(searchParams.get("window_minutes") || "60", 10) || 60, 1440);
 
-  const devQ = await sql`
-    select
-      device_id,
-      tenant_id,
-      claimed,
-      claim_code_sha256,
-      hostname,
-      ip,
-      mode,
-      last_seen
-    from devices
-    where device_id = ${device_id}
-    limit 1
-  `;
-  const devRows = toArray<AnyRow>(devQ);
+  // Device info
+  const devRows = toArray<AnyRow>(await sql`
+    SELECT device_id, tenant_id, claimed, hostname, ip, mode, last_seen
+    FROM devices
+    WHERE device_id = ${device_id}
+    LIMIT 1
+  `);
   const device = devRows[0] ?? null;
 
-  // Pull most recent results
-  const resQ = await sql`
-    select
+  // Latest measurements from the correct table
+  const measRows = toArray<AnyRow>(await sql`
+    SELECT
       id,
       device_id,
-      ts as ts_utc,
+      ts_utc,
       url,
-      latency_ms as http_ms,
-      case when success then null else coalesce(error,'') end as http_err,
-      success
-    from results
-    where device_id = ${device_id}
-      and ts >= (now() at time zone 'utc') - (${window_minutes} || ' minutes')::interval
-    order by ts desc
-    limit ${limit}
-  `;
-  const measurements = toArray<AnyRow>(resQ);
+      dns_ms,
+      http_ms,
+      http_status,
+      http_err,
+      CASE WHEN (http_err IS NULL OR http_err = '' OR http_err = 'null') THEN true ELSE false END AS success
+    FROM measurements
+    WHERE device_id = ${device_id}
+      AND ts_utc >= NOW() - (${window_minutes} || ' minutes')::interval
+    ORDER BY ts_utc DESC
+    LIMIT ${limit}
+  `);
 
   return NextResponse.json({
     ok: true,
@@ -70,7 +62,7 @@ export async function GET(req: Request) {
     window_minutes,
     limit,
     device,
-    measurements,
+    measurements: measRows,
     fetched_at_utc: new Date().toISOString(),
   });
 }
