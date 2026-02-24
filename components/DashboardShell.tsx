@@ -64,7 +64,6 @@ const NAV = [
   {
     section: "System",
     links: [
-      { href: "/netrunner/dashboard", label: "NetRunner",      icon: "signal"   },
       { href: "/webrunner/config",    label: "Config",         icon: "settings" },
       { href: "/setup",               label: "Device Setup",   icon: "cpu"      },
     ],
