@@ -46,7 +46,6 @@ export async function GET(req: Request) {
       url,
       dns_ms,
       http_ms,
-      http_status,
       http_err,
       CASE WHEN (http_err IS NULL OR http_err = '' OR http_err = 'null') THEN true ELSE false END AS success
     FROM measurements
