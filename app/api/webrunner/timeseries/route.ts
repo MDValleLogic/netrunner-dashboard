@@ -24,56 +24,51 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url);
-  const device_id = searchParams.get("device_id") || "pi-001";
+  const device_id      = searchParams.get("device_id") || "pi-001";
+  const window_minutes = Math.min(parseInt(searchParams.get("window_minutes") || "360", 10) || 360, 10080);
+  const bucket_seconds = Math.min(parseInt(searchParams.get("bucket_seconds") || "60",  10) || 60,  3600);
+  const url            = (searchParams.get("url") || "").trim();
 
-  // window_minutes controls time span, bucket_seconds controls granularity
-  const window_minutes = Math.min(parseInt(searchParams.get("window_minutes") || "360", 10) || 360, 10080); // up to 7d
-  const bucket_seconds = Math.min(parseInt(searchParams.get("bucket_seconds") || "60", 10) || 60, 3600); // 1m..1h
-
-  // Optional url filter
-  const url = (searchParams.get("url") || "").trim();
-
-  // Bucket by time and compute avg latency for successful probes
   const q = await sql`
-    with base as (
-      select
-        ts,
-        latency_ms,
-        success,
+    WITH base AS (
+      SELECT
+        ts_utc,
+        http_ms AS latency_ms,
+        CASE WHEN (http_err IS NULL OR http_err = '' OR http_err = 'null') THEN true ELSE false END AS success,
         url
-      from results
-      where device_id = ${device_id}
-        and ts >= (now() at time zone 'utc') - (${window_minutes} || ' minutes')::interval
-        ${url ? sql`and url = ${url}` : sql``}
+      FROM measurements
+      WHERE device_id = ${device_id}
+        AND ts_utc >= NOW() - (${window_minutes} * INTERVAL '1 minute')
+        ${url ? sql`AND url = ${url}` : sql``}
     ),
-    bucketed as (
-      select
-        to_timestamp(floor(extract(epoch from ts) / ${bucket_seconds}) * ${bucket_seconds}) at time zone 'utc' as bucket_ts,
-        avg(case when success then latency_ms end) as avg_latency_ms,
-        count(*) as samples,
-        sum(case when success then 1 else 0 end) as ok_samples,
-        sum(case when success then 0 else 1 end) as fail_samples
-      from base
-      group by 1
-      order by 1
+    bucketed AS (
+      SELECT
+        to_timestamp(floor(extract(epoch FROM ts_utc) / ${bucket_seconds}) * ${bucket_seconds}) AT TIME ZONE 'utc' AS bucket_ts,
+        AVG(CASE WHEN success THEN latency_ms END)        AS avg_latency_ms,
+        COUNT(*)                                           AS samples,
+        SUM(CASE WHEN success     THEN 1 ELSE 0 END)      AS ok_samples,
+        SUM(CASE WHEN NOT success THEN 1 ELSE 0 END)      AS fail_samples
+      FROM base
+      GROUP BY 1
+      ORDER BY 1
     )
-    select
-      bucket_ts as ts_utc,
+    SELECT
+      bucket_ts   AS ts_utc,
       avg_latency_ms,
       samples,
       ok_samples,
       fail_samples
-    from bucketed
+    FROM bucketed
   `;
 
   const rows = toArray<AnyRow>(q);
 
   const points = rows.map((r) => ({
-    ts_utc: r.ts_utc,
+    ts_utc:         r.ts_utc,
     avg_latency_ms: r.avg_latency_ms === null ? null : Number(r.avg_latency_ms),
-    samples: Number(r.samples || 0),
-    ok_samples: Number(r.ok_samples || 0),
-    fail_samples: Number(r.fail_samples || 0),
+    samples:        Number(r.samples     || 0),
+    ok_samples:     Number(r.ok_samples  || 0),
+    fail_samples:   Number(r.fail_samples || 0),
   }));
 
   return NextResponse.json({
