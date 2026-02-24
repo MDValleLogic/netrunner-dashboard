@@ -51,7 +51,7 @@ export async function GET(req: Request) {
       CASE WHEN (http_err IS NULL OR http_err = '' OR http_err = 'null') THEN true ELSE false END AS success
     FROM measurements
     WHERE device_id = ${device_id}
-      AND ts_utc >= ${new Date(Date.now() - window_minutes * 60 * 1000).toISOString()}::timestamptz
+      AND ts_utc >= ${new Date(Date.now() - window_minutes * 60 * 1000).toISOString()}
     ORDER BY ts_utc DESC
     LIMIT ${limit}
   `);
