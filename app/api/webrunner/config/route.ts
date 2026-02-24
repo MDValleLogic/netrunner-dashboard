@@ -19,6 +19,7 @@ const SAFE_DEFAULT: WebRunnerConfig = {
 };
 
 function normalizeConfig(input: any): WebRunnerConfig {
+  if (typeof input === "string") { try { input = JSON.parse(input); } catch {} }
   const urls = Array.isArray(input?.urls) ? input.urls.filter((u: any) => typeof u === "string" && u.startsWith("http")) : [];
   const interval = Number.isFinite(Number(input?.interval_seconds)) ? Number(input.interval_seconds) : SAFE_DEFAULT.interval_seconds;
   const timeout = Number.isFinite(Number(input?.timeout_seconds)) ? Number(input.timeout_seconds) : SAFE_DEFAULT.timeout_seconds;
@@ -42,6 +43,7 @@ export async function GET(req: Request) {
   }
 
   const deviceId = auth.deviceId;
+  console.log("[config GET] deviceId=", deviceId, "session=", !!session);
 
   // If the DB lookup fails (missing column/table/etc), we fall back to SAFE_DEFAULT.
   try {
