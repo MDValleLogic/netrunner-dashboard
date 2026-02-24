@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { verifyDevice } from "@/lib/authDevice";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/authOptions";
 
 type WebRunnerConfig = {
   mode?: string;
@@ -73,3 +75,32 @@ export async function GET(req: Request) {
   }
 }
 
+
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  let body: any;
+  try { body = await req.json(); } catch {
+    return NextResponse.json({ ok: false, error: "invalid JSON" }, { status: 400 });
+  }
+
+  const { device_id, urls, interval_seconds } = body || {};
+  if (!device_id) return NextResponse.json({ ok: false, error: "device_id required" }, { status: 400 });
+
+  const cleanUrls = Array.isArray(urls) ? urls.filter((u: any) => typeof u === "string" && u.startsWith("http")) : [];
+  const interval = Number.isFinite(Number(interval_seconds)) ? Number(interval_seconds) : 300;
+
+  const config = { urls: cleanUrls, interval_seconds: interval, mode: "cloud" };
+
+  await sql`
+    UPDATE devices
+    SET webrunner_config = ${JSON.stringify(config)}::jsonb,
+        updated_at = NOW()
+    WHERE device_id = ${device_id}
+  `;
+
+  return NextResponse.json({ ok: true, config: { ...config, updated_at: new Date().toISOString() } });
+}
