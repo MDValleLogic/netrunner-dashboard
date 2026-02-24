@@ -73,6 +73,8 @@ export async function GET(req: Request) {
     }
 
     const cloudConfig = row?.config_json ? normalizeConfig(row.config_json) : SAFE_DEFAULT;
+    console.log("[config GET] returning:", JSON.stringify(cloudConfig));
+    console.log("[config GET] returning:", JSON.stringify(cloudConfig));
     return NextResponse.json({ ok: true, config: cloudConfig });
   } catch {
     // MVP-safe: never break device operation because DB/schema isn't ready yet
