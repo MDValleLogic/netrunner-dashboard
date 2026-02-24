@@ -46,14 +46,14 @@ export async function GET(req: Request) {
     // If you don’t have it yet, this query may throw -> caught below.
     const rows = (await sql`
       select
-        webrunner_config,
+        config_json,
         claimed,
         tenant_id
       from devices
       where device_id = ${deviceId}
       limit 1
     `) as Array<{
-      webrunner_config: any;
+      config_json: any;
       claimed: boolean | null;
       tenant_id: string | null;
     }>;
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: true, config: SAFE_DEFAULT });
     }
 
-    const cloudConfig = row?.webrunner_config ? normalizeConfig(row.webrunner_config) : SAFE_DEFAULT;
+    const cloudConfig = row?.config_json ? normalizeConfig(row.config_json) : SAFE_DEFAULT;
     return NextResponse.json({ ok: true, config: cloudConfig });
   } catch {
     // MVP-safe: never break device operation because DB/schema isn't ready yet
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
 
   await sql`
     UPDATE devices
-    SET webrunner_config = ${JSON.stringify(config)},
+    SET config_json = ${JSON.stringify(config)},
         updated_at = NOW()
     WHERE device_id = ${device_id}
   `;
