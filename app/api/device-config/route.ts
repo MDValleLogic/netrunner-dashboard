@@ -34,20 +34,18 @@ export async function GET(req: Request) {
     // interval_seconds (int)
     // updated_at (timestamp)
     const q = await sql`
-      select
+      SELECT
         device_id,
-        urls,
-        interval_seconds,
+        config_json,
         updated_at
-      from device_config
-      where device_id = ${device_id}
-      limit 1
+      FROM devices
+      WHERE device_id = ${device_id}
+      LIMIT 1
     `;
 
     const rows = toArray<{
       device_id: string;
-      urls: any;
-      interval_seconds: number | null;
+      config_json: any;
       updated_at: string | null;
     }>(q);
 
@@ -73,7 +71,7 @@ export async function GET(req: Request) {
     let urls: string[] = defaults.urls;
 
     try {
-      const raw = r.urls;
+      const raw = r.config_json?.urls ?? r.config_json;
       const parsed =
         typeof raw === "string" ? JSON.parse(raw) : raw;
 
@@ -86,8 +84,8 @@ export async function GET(req: Request) {
 
     const config = {
       urls,
-      interval_seconds: Number.isFinite(Number(r.interval_seconds))
-        ? Number(r.interval_seconds)
+      interval_seconds: Number.isFinite(Number(r.config_json?.interval_seconds))
+        ? Number(r.config_json?.interval_seconds)
         : defaults.interval_seconds,
     };
 
