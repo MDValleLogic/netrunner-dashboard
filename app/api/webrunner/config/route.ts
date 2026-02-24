@@ -33,7 +33,10 @@ function normalizeConfig(input: any): WebRunnerConfig {
 }
 
 export async function GET(req: Request) {
-  const auth = await verifyDevice(req);
+  // Allow session auth for dashboard calls
+  const session = await getServerSession(authOptions);
+  const auth = session ? { ok: true, deviceId: new URL(req.url).searchParams.get("device_id") || "" } : await verifyDevice(req);
+
   if (!auth.ok) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
