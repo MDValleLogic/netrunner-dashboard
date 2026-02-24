@@ -38,7 +38,7 @@ export async function GET(req: Request) {
         url
       FROM measurements
       WHERE device_id = ${device_id}
-        AND ts_utc >= NOW() - (${window_minutes} * INTERVAL '1 minute')
+        AND ts_utc >= NOW() - MAKE_INTERVAL(mins => ${window_minutes})
         ${url ? sql`AND url = ${url}` : sql``}
     ),
     bucketed AS (

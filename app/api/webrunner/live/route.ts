@@ -51,7 +51,7 @@ export async function GET(req: Request) {
       CASE WHEN (http_err IS NULL OR http_err = '' OR http_err = 'null') THEN true ELSE false END AS success
     FROM measurements
     WHERE device_id = ${device_id}
-      AND ts_utc >= NOW() - (${window_minutes} * INTERVAL '1 minute')
+      AND ts_utc >= NOW() - MAKE_INTERVAL(mins => ${window_minutes})
     ORDER BY ts_utc DESC
     LIMIT ${limit}
   `);
