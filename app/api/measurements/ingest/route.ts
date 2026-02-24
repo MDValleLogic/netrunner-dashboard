@@ -38,6 +38,9 @@ export async function POST(req: Request) {
       RETURNING id, device_id, ts_utc, url, dns_ms, http_ms, http_err;
     `;
 
+    // Update device last_seen on every ingest
+    await sql`UPDATE devices SET last_seen = NOW() WHERE device_id = ${device_id}`;
+
     return Response.json({
       ok: true,
       inserted_id: (inserted as any)[0]?.id ?? null,

@@ -77,7 +77,7 @@ function fmtMs(val: number | null | undefined): string {
 
 function isOnline(lastSeen?: string | null): boolean {
   if (!lastSeen) return false;
-  return Date.now() - new Date(lastSeen).getTime() < 2 * 60 * 1000;
+  return Date.now() - new Date(lastSeen).getTime() < 10 * 60 * 1000;
 }
 
 // ─── Custom Tooltip ────────────────────────────────────────────────
