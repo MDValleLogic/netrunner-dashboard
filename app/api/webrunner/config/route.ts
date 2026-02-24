@@ -97,7 +97,7 @@ export async function POST(req: Request) {
 
   await sql`
     UPDATE devices
-    SET webrunner_config = ${JSON.stringify(config)}::jsonb,
+    SET webrunner_config = ${JSON.stringify(config)},
         updated_at = NOW()
     WHERE device_id = ${device_id}
   `;
