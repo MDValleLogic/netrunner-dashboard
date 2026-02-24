@@ -6,46 +6,28 @@ import {
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 
-type Point = {
-  ts_utc: string;
-  dns_ms: number;
-  http_ms: number;
-  http_err: string;
-};
-
+type Point = { ts_utc: string; dns_ms: number; http_ms: number; http_err: string; };
 type TimeseriesResp = {
-  ok: boolean;
-  device_id: string;
-  since_minutes: number;
-  urls: string[];
-  points: number;
-  series: Record<string, Point[]>;
-  error?: string;
+  ok: boolean; device_id: string; since_minutes: number;
+  urls: string[]; points: number; series: Record<string, Point[]>; error?: string;
 };
-
-type DeviceRow = {
-  device_id: string;
-  updated_at?: string;
-};
+type DeviceRow = { device_id: string; updated_at?: string; };
 
 const CHART_COLORS = ["#3b82f6", "#10b981", "#f97316", "#a78bfa", "#ef4444"];
-
 const TIME_RANGES = [
-  { value: 60,   label: "Last 1 hr"  },
-  { value: 240,  label: "Last 4 hrs" },
-  { value: 1440, label: "Last 24 hrs"},
+  { value: 60,   label: "Last 1 hr"   },
+  { value: 240,  label: "Last 4 hrs"  },
+  { value: 1440, label: "Last 24 hrs" },
 ];
 
 function fmtTime(iso: string) {
   try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
   catch { return ""; }
 }
-
 function fmtMs(val: number | undefined | null): string {
   if (val == null || isNaN(val)) return "—";
   return val < 1000 ? `${Math.round(val)}ms` : `${(val / 1000).toFixed(2)}s`;
 }
-
 function mergeSeries(series: Record<string, Point[]>, field: "dns_ms" | "http_ms") {
   const byTs = new Map<string, Record<string, number>>();
   for (const [url, pts] of Object.entries(series)) {
@@ -58,7 +40,6 @@ function mergeSeries(series: Record<string, Point[]>, field: "dns_ms" | "http_ms
     (a, b) => new Date(a.ts_utc as any).getTime() - new Date(b.ts_utc as any).getTime()
   );
 }
-
 function computeStats(series: Record<string, Point[]>) {
   let totalPoints = 0, sumDns = 0, sumHttp = 0, errCount = 0;
   for (const pts of Object.values(series)) {
@@ -134,7 +115,6 @@ export default function DashboardPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load devices on mount
   useEffect(() => {
     fetch("/api/devices")
       .then((r) => r.json())
@@ -147,17 +127,27 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
-  // When device changes, fetch its active URLs from measurements
   useEffect(() => {
     if (!deviceId) return;
     setUrlsLoading(true);
     setUrls([]);
     setData(null);
-    fetch(`/api/device/urls?device_id=${encodeURIComponent(deviceId)}`)
+    setErr("");
+
+    fetch(`/api/webrunner/config?device_id=${encodeURIComponent(deviceId)}`)
       .then((r) => r.json())
       .then((j) => {
-        if (j?.ok && Array.isArray(j.urls) && j.urls.length > 0) {
-          setUrls(j.urls);
+        const configUrls: string[] = j?.config?.urls ?? [];
+        if (configUrls.length > 0) {
+          setUrls(configUrls.slice(0, 5).map((u: string) => u.replace(/\/$/, "")));
+        } else {
+          return fetch(`/api/device/urls?device_id=${encodeURIComponent(deviceId)}`)
+            .then((r) => r.json())
+            .then((j2) => {
+              if (j2?.ok && Array.isArray(j2.urls) && j2.urls.length > 0) {
+                setUrls(j2.urls.slice(0, 5));
+              }
+            });
         }
       })
       .catch(() => {})
@@ -183,12 +173,10 @@ export default function DashboardPage() {
     }
   }, [deviceId, urls, sinceMinutes]);
 
-  // Auto-run query when URLs load
   useEffect(() => {
     if (urls.length > 0 && deviceId) load();
-  }, [urls]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [urls, deviceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-refresh
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (autoRefresh) timerRef.current = setInterval(load, 30_000);
@@ -196,7 +184,7 @@ export default function DashboardPage() {
   }, [autoRefresh, load]);
 
   function addUrl() {
-    const u = newUrl.trim();
+    const u = newUrl.trim().replace(/\/$/, "");
     if (!u || urls.includes(u) || urls.length >= 5) return;
     setUrls((prev) => [...prev, u]);
     setNewUrl("");
@@ -227,8 +215,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="vl-main" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
-        {/* Stat tiles */}
         <div className="vl-grid-4">
           <StatTile label="Avg DNS"    value={stats ? fmtMs(stats.avgDns)  : "—"} sub="across all URLs"
             accent={stats && stats.avgDns  != null && stats.avgDns  > 200 ? "red" : "green"} />
@@ -240,7 +226,6 @@ export default function DashboardPage() {
             sub={`in last ${sinceMinutes < 60 ? sinceMinutes + "m" : sinceMinutes / 60 + "h"}`} accent="accent" />
         </div>
 
-        {/* Controls */}
         <div className="vl-card">
           <div className="vl-card-header">
             <span style={{ fontSize: 13, fontWeight: 600 }}>Query Settings</span>
@@ -267,7 +252,7 @@ export default function DashboardPage() {
 
             <label className="vl-label">
               URLs to Monitor <span style={{ color: "var(--text-dim)" }}>({urls.length}/5)</span>
-              {urlsLoading && <span style={{ color: "var(--accent)", marginLeft: 8, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>loading from device…</span>}
+              {urlsLoading && <span style={{ color: "var(--accent)", marginLeft: 8, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>loading…</span>}
             </label>
 
             <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
@@ -279,7 +264,7 @@ export default function DashboardPage() {
 
             {urls.length === 0 && !urlsLoading && (
               <div style={{ fontSize: 12, color: "var(--text-dim)", padding: "8px 0" }}>
-                No active URLs found for this device in the last 24h. Add one above.
+                No URLs configured. Add one above or set them in Config.
               </div>
             )}
 
@@ -292,7 +277,7 @@ export default function DashboardPage() {
             <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
               <button className="vl-btn vl-btn-primary" onClick={load}
                 disabled={loading || urls.length === 0 || !deviceId}>
-                {loading ? <><span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>◌</span> Loading…</> : "▶  Run Query"}
+                {loading ? "Loading…" : "▶  Run Query"}
               </button>
               {data && (
                 <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
@@ -303,7 +288,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Charts */}
         {(dnsData.length > 0 || httpData.length > 0) && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {[
@@ -346,7 +330,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Empty state */}
         {!data && !loading && !urlsLoading && (
           <div className="vl-card">
             <div className="vl-empty">
@@ -368,8 +351,6 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>
   );
 }
