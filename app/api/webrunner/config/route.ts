@@ -65,6 +65,7 @@ export async function GET(req: Request) {
 
     const row = rows?.[0] ?? null;
 
+    console.log("[config GET] row=", JSON.stringify(row));
     // Unclaimed devices ALWAYS get safe default
     const claimed = Boolean(row?.claimed);
     const tenantId = (row?.tenant_id ?? "").trim();
