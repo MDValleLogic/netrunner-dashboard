@@ -81,7 +81,6 @@ export default function DashboardShell({ children }: { children: React.ReactNode
         {/* Logo */}
         <div className="vl-sidebar-logo">
           <img src="/vallelogic-logo-white.png" alt="ValleLogic" style={{ width: "85%", maxWidth: 160, margin: "0 auto", display: "block" }} />
-          <div className="vl-sidebar-logo-sub" style={{ textAlign: "center", marginTop: 4 }}>NetRunner · WebRunner</div>
         </div>
 
         {/* Nav */}
