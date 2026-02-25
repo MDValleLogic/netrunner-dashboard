@@ -131,8 +131,6 @@ export default async function UsersPage() {
                       fontSize: 11, color: "var(--text-dim)", cursor: "pointer",
                       fontFamily: "var(--font-sans)",
                     }}
-                    onMouseOver={e => (e.currentTarget.style.borderColor = "#ef4444", e.currentTarget.style.color = "#ef4444")}
-                    onMouseOut={e => (e.currentTarget.style.borderColor = "var(--border-mid)", e.currentTarget.style.color = "var(--text-dim)")}
                     >
                       Remove
                     </button>
