@@ -2,17 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ReferenceLine,
+  ResponsiveContainer, LineChart, Line, CartesianGrid,
+  XAxis, YAxis, Tooltip,
 } from "recharts";
 
-// ─── Types ─────────────────────────────────────────────────────────
 type LiveMeasurement = {
   id: string | number;
   device_id: string;
@@ -57,16 +50,9 @@ type TimeseriesResponse = {
   points: TimeseriesPoint[];
 };
 
-// ─── Helpers ───────────────────────────────────────────────────────
 function fmtTime(iso?: string | null) {
   if (!iso) return "—";
   try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
-  catch { return ""; }
-}
-
-function fmtDateTime(iso?: string | null) {
-  if (!iso) return "—";
-  try { return new Date(iso).toLocaleString(); }
   catch { return ""; }
 }
 
@@ -80,22 +66,14 @@ function isOnline(lastSeen?: string | null): boolean {
   return Date.now() - new Date(lastSeen).getTime() < 10 * 60 * 1000;
 }
 
-// ─── Custom Tooltip ────────────────────────────────────────────────
-function LiveTooltip({ active, payload, label }: any) {
+function LiveTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
-      background: "var(--bg-overlay)",
-      border: "1px solid var(--border-bright)",
-      borderRadius: "var(--r-md)",
-      padding: "10px 14px",
-      fontSize: 12,
-      fontFamily: "var(--font-mono)",
-      minWidth: 160,
+      background: "var(--bg-overlay)", border: "1px solid var(--border-bright)",
+      borderRadius: "var(--r-md)", padding: "10px 14px",
+      fontSize: 12, fontFamily: "var(--font-mono)", minWidth: 160,
     }}>
-      <div style={{ color: "var(--text-dim)", marginBottom: 8, fontSize: 10 }}>
-        {new Date(Number(label)).toLocaleTimeString()}
-      </div>
       {payload.map((e: any) => (
         <div key={e.dataKey} style={{ color: e.color, display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 2 }}>
           <span style={{ color: "var(--text-secondary)" }}>{e.name}</span>
@@ -106,7 +84,6 @@ function LiveTooltip({ active, payload, label }: any) {
   );
 }
 
-// ─── Pulse dot ─────────────────────────────────────────────────────
 function PulseDot({ online }: { online: boolean }) {
   return (
     <span style={{
@@ -114,7 +91,8 @@ function PulseDot({ online }: { online: boolean }) {
       padding: "2px 8px", borderRadius: 999,
       background: online ? "var(--green-dim)" : "var(--red-dim)",
       border: `1px solid ${online ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)"}`,
-      fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" as const,
+      fontSize: 11, fontWeight: 600, letterSpacing: "0.06em",
+      textTransform: "uppercase" as const,
       color: online ? "var(--green)" : "var(--red)",
     }}>
       <span style={{
@@ -129,14 +107,13 @@ function PulseDot({ online }: { online: boolean }) {
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────
 export default function WebRunnerLivePage() {
   const [deviceId, setDeviceId] = useState("pi-001");
   const [windowMinutes, setWindow] = useState(60);
   const [live, setLive]   = useState<LiveResponse | null>(null);
   const [series, setSeries] = useState<TimeseriesResponse | null>(null);
   const [err, setErr]     = useState("");
-  const [tick, setTick]   = useState(0); // for countdown
+  const [tick, setTick]   = useState(0);
 
   async function fetchAll() {
     try {
@@ -157,7 +134,6 @@ export default function WebRunnerLivePage() {
     }
   }
 
-  // Poll every 5s
   useEffect(() => {
     fetchAll();
     const poll = setInterval(fetchAll, 5_000);
@@ -178,7 +154,6 @@ export default function WebRunnerLivePage() {
 
   const online = isOnline(live?.device?.last_seen);
 
-  // Compute quick stats from measurements
   const liveStats = useMemo(() => {
     const ms = live?.measurements || [];
     const success = ms.filter((m) => m.success);
@@ -190,10 +165,8 @@ export default function WebRunnerLivePage() {
 
   const nextRefresh = Math.max(0, 5 - (tick % 5));
 
-  // ─── Render ────────────────────────────────────────────────────
   return (
     <>
-      {/* Topbar */}
       <div className="vl-topbar">
         <div>
           <div className="vl-topbar-title">Live Feed</div>
@@ -203,12 +176,7 @@ export default function WebRunnerLivePage() {
         <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
           next refresh in {nextRefresh}s
         </span>
-        <select
-          className="vl-select"
-          value={windowMinutes}
-          onChange={(e) => setWindow(Number(e.target.value))}
-          style={{ width: "auto" }}
-        >
+        <select className="vl-select" value={windowMinutes} onChange={(e) => setWindow(Number(e.target.value))} style={{ width: "auto" }}>
           <option value={15}>15 min</option>
           <option value={60}>1 hr</option>
           <option value={240}>4 hrs</option>
@@ -218,54 +186,81 @@ export default function WebRunnerLivePage() {
       <div className="vl-main" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
         {err && (
-          <div style={{
-            padding: "10px 16px", borderRadius: "var(--r-md)",
-            background: "var(--red-dim)", border: "1px solid rgba(239,68,68,0.3)",
-            color: "var(--red)", fontSize: 13,
-          }}>
+          <div style={{ padding: "10px 16px", borderRadius: "var(--r-md)", background: "var(--red-dim)", border: "1px solid rgba(239,68,68,0.3)", color: "var(--red)", fontSize: 13 }}>
             ⚠ {err}
           </div>
         )}
 
-        {/* ── Device info row ─────────────────────────────────── */}
-        <div className="vl-card">
-          <div className="vl-card-header">
-            <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-mono)" }}>
-              {live?.device?.hostname || deviceId}
-            </span>
-            <PulseDot online={online} />
-          </div>
-          <div className="vl-card-body">
-            <div className="vl-grid-4" style={{ gap: 10 }}>
-              <div>
-                <div className="vl-stat-label">Device ID</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)", marginTop: 3 }}>
-                  {live?.device?.device_id || "—"}
-                </div>
+        {/* ── NetRunner Appliance device card ── */}
+        <div className="vl-card" style={{ overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "stretch", minHeight: 140 }}>
+
+            {/* Appliance image — dark bg panel */}
+            <div style={{
+              width: 220, flexShrink: 0,
+              background: "linear-gradient(135deg, #0a0f1a 0%, #0f1f3d 100%)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              padding: "16px 20px",
+              position: "relative",
+            }}>
+              <img
+                src="/NetRunner_Black.png"
+                alt="NetRunner Appliance"
+                style={{ width: "100%", maxWidth: 180, height: "auto", objectFit: "contain", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.6))" }}
+              />
+              {/* Online indicator light overlay */}
+              <div style={{
+                position: "absolute", bottom: 10, left: 12,
+                fontSize: 9, fontWeight: 700, letterSpacing: "0.08em",
+                color: "rgba(255,255,255,0.35)", textTransform: "uppercase",
+              }}>
+                NetRunner Appliance
               </div>
-              <div>
-                <div className="vl-stat-label">IP Address</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)", marginTop: 3 }}>
-                  {live?.device?.ip || "—"}
+            </div>
+
+            {/* Device info */}
+            <div style={{ flex: 1, padding: "16px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", fontFamily: "var(--font-mono)", marginBottom: 2 }}>
+                    {live?.device?.hostname || deviceId}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-dim)" }}>Edge monitoring appliance</div>
                 </div>
+                <PulseDot online={online} />
               </div>
-              <div>
-                <div className="vl-stat-label">Mode</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)", marginTop: 3 }}>
-                  {live?.device?.mode || "—"}
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                <div>
+                  <div className="vl-stat-label">Device ID</div>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)", marginTop: 3 }}>
+                    {live?.device?.device_id || "—"}
+                  </div>
                 </div>
-              </div>
-              <div>
-                <div className="vl-stat-label">Last Seen</div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)", marginTop: 3 }}>
-                  {fmtTime(live?.device?.last_seen)}
+                <div>
+                  <div className="vl-stat-label">IP Address</div>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)", marginTop: 3 }}>
+                    {live?.device?.ip || "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="vl-stat-label">Mode</div>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)", marginTop: 3 }}>
+                    {live?.device?.mode || "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="vl-stat-label">Last Seen</div>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)", marginTop: 3 }}>
+                    {fmtTime(live?.device?.last_seen)}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Quick stats ─────────────────────────────────────── */}
+        {/* ── Quick stats ── */}
         <div className="vl-grid-4">
           <div className="vl-stat">
             <div className="vl-stat-label">Avg Latency</div>
@@ -286,14 +281,12 @@ export default function WebRunnerLivePage() {
           </div>
           <div className="vl-stat">
             <div className="vl-stat-label">Failures</div>
-            <div className={`vl-stat-value ${liveStats.fail > 0 ? "vl-stat-red" : ""}`}>
-              {liveStats.fail}
-            </div>
+            <div className={`vl-stat-value ${liveStats.fail > 0 ? "vl-stat-red" : ""}`}>{liveStats.fail}</div>
             <div className="vl-stat-sub">in window</div>
           </div>
         </div>
 
-        {/* ── Latency chart ───────────────────────────────────── */}
+        {/* ── Latency chart ── */}
         <div className="vl-card">
           <div className="vl-card-header">
             <span style={{ fontSize: 13, fontWeight: 600 }}>Latency Timeline</span>
@@ -304,56 +297,28 @@ export default function WebRunnerLivePage() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="2 4" stroke="var(--border-dim)" />
-                  <XAxis
-                    dataKey="t"
-                    type="number"
-                    domain={["dataMin", "dataMax"]}
+                  <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]}
                     tickFormatter={(v) => new Date(Number(v)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
-                    axisLine={{ stroke: "var(--border-mid)" }}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => `${v}ms`}
-                    width={52}
-                  />
+                    axisLine={{ stroke: "var(--border-mid)" }} tickLine={false} />
+                  <YAxis tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
+                    axisLine={false} tickLine={false} tickFormatter={(v) => `${v}ms`} width={52} />
                   <Tooltip content={<LiveTooltip />} />
-                  <Line
-                    type="monotone"
-                    dataKey="avg_latency_ms"
-                    name="avg_latency_ms"
-                    stroke="var(--chart-1)"
-                    strokeWidth={2}
-                    dot={false}
-                    isAnimationActive={false}
-                    activeDot={{ r: 4 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="fail"
-                    name="fail"
-                    stroke="var(--red)"
-                    strokeWidth={1}
-                    strokeDasharray="3 3"
-                    dot={false}
-                    isAnimationActive={false}
-                  />
+                  <Line type="monotone" dataKey="avg_latency_ms" name="avg_latency_ms"
+                    stroke="var(--chart-1)" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="fail" name="fail"
+                    stroke="var(--red)" strokeWidth={1} strokeDasharray="3 3" dot={false} isAnimationActive={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
         </div>
 
-        {/* ── Measurements table ──────────────────────────────── */}
+        {/* ── Measurements table ── */}
         <div className="vl-card">
           <div className="vl-card-header">
             <span style={{ fontSize: 13, fontWeight: 600 }}>Latest Measurements</span>
-            <span style={{ fontSize: 11, color: "var(--text-dim)" }}>
-              {live?.measurements?.length || 0} records
-            </span>
+            <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{live?.measurements?.length || 0} records</span>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table className="vl-table">
@@ -368,11 +333,7 @@ export default function WebRunnerLivePage() {
               </thead>
               <tbody>
                 {(live?.measurements || []).length === 0 ? (
-                  <tr>
-                    <td colSpan={5}>
-                      <div className="vl-empty">No measurements in window</div>
-                    </td>
-                  </tr>
+                  <tr><td colSpan={5}><div className="vl-empty">No measurements in window</div></td></tr>
                 ) : (
                   (live?.measurements || []).map((m) => (
                     <tr key={String(m.id)}>
@@ -386,8 +347,7 @@ export default function WebRunnerLivePage() {
                       <td>
                         <span style={{
                           display: "inline-flex", alignItems: "center", gap: 4,
-                          padding: "2px 7px", borderRadius: 999, fontSize: 10,
-                          fontWeight: 700, letterSpacing: "0.07em",
+                          padding: "2px 7px", borderRadius: 999, fontSize: 10, fontWeight: 700, letterSpacing: "0.07em",
                           background: m.success ? "var(--green-dim)" : "var(--red-dim)",
                           color: m.success ? "var(--green)" : "var(--red)",
                         }}>
@@ -402,6 +362,60 @@ export default function WebRunnerLivePage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* ── NetRunner Appliance specs card ── */}
+        <div className="vl-card" style={{ overflow: "hidden" }}>
+          <div className="vl-card-header">
+            <span style={{ fontSize: 13, fontWeight: 600 }}>NetRunner Appliance</span>
+            <span style={{ fontSize: 11, color: "var(--text-dim)" }}>Edge intelligence hardware</span>
+          </div>
+          <div className="vl-card-body">
+            <div style={{ display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap" }}>
+
+              {/* Both appliance images */}
+              <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                <div style={{
+                  background: "#0a0f1a", borderRadius: 12, padding: "12px 16px",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <img src="/NetRunner_Black.png" alt="NetRunner Black" style={{ width: 140, height: "auto", objectFit: "contain" }} />
+                </div>
+                <div style={{
+                  background: "#f4f6f8", borderRadius: 12, padding: "12px 16px",
+                  border: "1px solid var(--border-mid)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <img src="/NetRunner_White.png" alt="NetRunner White" style={{ width: 140, height: "auto", objectFit: "contain" }} />
+                </div>
+              </div>
+
+              {/* Specs */}
+              <div style={{ flex: 1, minWidth: 280 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginBottom: 12 }}>
+                  Always-on edge monitoring from your network
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {[
+                    { icon: "⬡", label: "Wired",         value: "Gigabit Ethernet" },
+                    { icon: "◈", label: "Wireless",       value: "Wi-Fi ready" },
+                    { icon: "▶", label: "Test Cycles",    value: "Every 5 minutes" },
+                    { icon: "⬡", label: "Cloud Sync",     value: "Real-time to Neon DB" },
+                    { icon: "◈", label: "Runners",        value: "WebRunner active" },
+                    { icon: "▶", label: "Form Factor",    value: "Compact · fanless" },
+                  ].map((s) => (
+                    <div key={s.label} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <span style={{ color: "var(--accent)", fontSize: 11, marginTop: 1 }}>{s.icon}</span>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--text-dim)" }}>{s.label}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 1 }}>{s.value}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
