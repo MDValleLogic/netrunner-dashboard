@@ -198,13 +198,13 @@ export default function WebRunnerLivePage() {
             {/* Appliance image — dark bg panel */}
             <div style={{
               width: 220, flexShrink: 0,
-              background: "linear-gradient(135deg, #0a0f1a 0%, #0f1f3d 100%)",
+              background: "#0f1f3d",
               display: "flex", alignItems: "center", justifyContent: "center",
               padding: "16px 20px",
               position: "relative",
             }}>
               <img
-                src="/NetRunner_Black.png"
+                src="/NetRunner_White.png"
                 alt="NetRunner Appliance"
                 style={{ width: "100%", maxWidth: 180, height: "auto", objectFit: "contain", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.6))" }}
               />
@@ -380,7 +380,7 @@ export default function WebRunnerLivePage() {
                   background: "#0a0f1a", borderRadius: 12, padding: "12px 16px",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <img src="/NetRunner_Black.png" alt="NetRunner Black" style={{ width: 140, height: "auto", objectFit: "contain" }} />
+                  <img src="/NetRunner_White.png" alt="NetRunner Black" style={{ width: 140, height: "auto", objectFit: "contain" }} />
                 </div>
                 <div style={{
                   background: "#f4f6f8", borderRadius: 12, padding: "12px 16px",
