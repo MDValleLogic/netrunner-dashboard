@@ -53,8 +53,10 @@ function computeStats(series: Record<string, Point[]>) {
   return {
     avgDns:    totalPoints ? Math.round(sumDns / totalPoints)  : null,
     avgHttp:   totalPoints ? Math.round(sumHttp / totalPoints) : null,
-    errCount, totalPoints,
-    errorRate: totalPoints ? ((errCount / totalPoints) * 100).toFixed(1) : null,
+    errCount,
+    totalPoints,
+    // FIX: was returning null when totalPoints=0, rendering as "null%"
+    errorRate: totalPoints ? ((errCount / totalPoints) * 100).toFixed(1) : "0.0",
   };
 }
 
@@ -138,17 +140,14 @@ export default function DashboardPage() {
       .then((r) => r.json())
       .then((j) => {
         const configUrls: string[] = j?.config?.urls ?? [];
-        if (configUrls.length > 0) {
-          setUrls(configUrls.slice(0, 5).map((u: string) => u.replace(/\/$/, "")));
-        } else {
-          return fetch(`/api/device/urls?device_id=${encodeURIComponent(deviceId)}`)
-            .then((r) => r.json())
-            .then((j2) => {
-              if (j2?.ok && Array.isArray(j2.urls) && j2.urls.length > 0) {
-                setUrls(j2.urls.slice(0, 5));
-              }
-            });
+        // Filter out the SAFE_DEFAULT google URL so we don't display it
+        const realUrls = configUrls.filter(
+          (u) => !u.includes("google.com/generate_204")
+        );
+        if (realUrls.length > 0) {
+          setUrls(realUrls.slice(0, 5).map((u: string) => u.replace(/\/$/, "")));
         }
+        // If we only got SAFE_DEFAULT or nothing, leave urls empty — show "no URLs configured"
       })
       .catch(() => {})
       .finally(() => setUrlsLoading(false));
@@ -220,8 +219,12 @@ export default function DashboardPage() {
             accent={stats && stats.avgDns  != null && stats.avgDns  > 200 ? "red" : "green"} />
           <StatTile label="Avg HTTP"   value={stats ? fmtMs(stats.avgHttp) : "—"} sub="response time"
             accent={stats && stats.avgHttp != null && stats.avgHttp > 500 ? "red" : "default"} />
-          <StatTile label="Error Rate" value={stats ? `${stats.errorRate}%` : "—"} sub={stats ? `${stats.errCount} failures` : ""}
-            accent={stats && stats.errCount > 0 ? "red" : "green"} />
+          <StatTile
+            label="Error Rate"
+            value={stats ? `${stats.errorRate}%` : "—"}
+            sub={stats ? `${stats.errCount} failure${stats.errCount !== 1 ? "s" : ""}` : ""}
+            accent={stats && stats.errCount > 0 ? "red" : "green"}
+          />
           <StatTile label="Data Points" value={stats ? String(stats.totalPoints) : "—"}
             sub={`in last ${sinceMinutes < 60 ? sinceMinutes + "m" : sinceMinutes / 60 + "h"}`} accent="accent" />
         </div>
