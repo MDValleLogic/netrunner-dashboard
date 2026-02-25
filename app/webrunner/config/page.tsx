@@ -84,7 +84,7 @@ export default function ConfigPage() {
         setUrls(j.config.urls ?? urls);
         setIntervalS(j.config.interval_seconds ?? interval);
         setUpdatedAt(j.config.updated_at ?? null);
-        setMsg({ type: "success", text: `Saved ${j.config.urls?.length ?? 0} URL(s) · interval ${j.config.interval_seconds}s. Pi will pick up on next cycle.` });
+        setMsg({ type: "success", text: `Saved ${j.config.urls?.length ?? 0} URL(s) · interval ${j.config.interval_seconds}s. Appliance will pick up on next cycle.` });
       }
     } catch (e: any) {
       setMsg({ type: "error", text: String(e?.message ?? e) });
@@ -112,7 +112,7 @@ export default function ConfigPage() {
       <div className="vl-topbar">
         <div>
           <div className="vl-topbar-title">WebRunner Config</div>
-          <div className="vl-topbar-sub">Manage URLs and test intervals for your Pi</div>
+          <div className="vl-topbar-sub">Manage URLs and test intervals for your NetRunner Appliance</div>
         </div>
         <div className="vl-topbar-spacer" />
         {updatedAt && (
@@ -147,7 +147,7 @@ export default function ConfigPage() {
                   {INTERVAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
                 <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 5 }}>
-                  Pi will run all URLs every {interval < 60 ? `${interval}s` : interval < 3600 ? `${interval/60}m` : `${interval/3600}h`}
+                  Appliance will run all URLs every {interval < 60 ? `${interval}s` : interval < 3600 ? `${interval/60}m` : `${interval/3600}h`}
                 </div>
               </div>
             </div>
@@ -180,7 +180,7 @@ export default function ConfigPage() {
             {/* URL list */}
             {urls.length === 0 ? (
               <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-dim)", fontSize: 13 }}>
-                No URLs configured. Add URLs above — the Pi will start monitoring them on the next cycle.
+                No URLs configured. Add URLs above — the NetRunner Appliance will start monitoring them on the next cycle.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
@@ -217,7 +217,7 @@ export default function ConfigPage() {
             disabled={saving || loading}
             style={{ padding: "11px 28px", fontSize: 14 }}
           >
-            {saving ? "Saving…" : "Save Config → Push to Pi"}
+            {saving ? "Saving…" : "Save Config → Push to Appliance"}
           </button>
           <button
             className="vl-btn vl-btn-ghost"
@@ -235,7 +235,7 @@ export default function ConfigPage() {
             <path d="M7 6v4M7 4.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
           <span>
-            Config is stored in the cloud. Your Pi fetches it automatically on each boot and every test cycle.
+            Config is stored in the cloud. Your NetRunner Appliance fetches config automatically on each boot and every test cycle.
             Changes take effect within one cycle (~{interval}s).
           </span>
         </div>

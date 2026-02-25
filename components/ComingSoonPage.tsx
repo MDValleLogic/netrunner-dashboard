@@ -9,7 +9,7 @@ type RunnerDef = {
   tagline: string;
   description: string;
   capabilities: { icon: string; title: string; detail: string }[];
-  piRequirement: string;
+  applianceRequirement: string;
   accentColor: string;
 };
 
@@ -26,7 +26,7 @@ const RUNNERS: Record<string, RunnerDef> = {
       { icon: "◎", title: "CDN Fingerprinting", detail: "Identifies Cloudflare, Akamai, Fastly, and AWS CloudFront edge nodes by IP range and PTR record." },
       { icon: "⟳", title: "Path Learning", detail: "Baselines the normal path per URL. Alerts on BGP rerouting and shows path divergence over time." },
     ],
-    piRequirement: "traceroute · WHOIS/MaxMind ASN · PTR records",
+    applianceRequirement: "traceroute · WHOIS/MaxMind ASN · PTR records",
     accentColor: "#0D7A8A",
   },
   speedrunner: {
@@ -34,14 +34,14 @@ const RUNNERS: Record<string, RunnerDef> = {
     phase: "2",
     phaseLabel: "Phase 2 · Next Up",
     tagline: "Is your ISP actually delivering what you're paying for?",
-    description: "Edge bandwidth measurement from the Pi — download, upload, and jitter. Scheduled tests against the nearest server with trending to detect ISP throttling over time.",
+    description: "Edge bandwidth measurement from the NetRunner Appliance — download, upload, and jitter. Scheduled tests against the nearest server with trending to detect ISP throttling over time.",
     capabilities: [
       { icon: "⬆", title: "Download & Upload", detail: "Measures real throughput from the edge, not from the cloud. Catches ISP throttling at the source." },
       { icon: "∿", title: "Jitter Analysis", detail: "Tracks packet timing variance — critical signal for VoIP, video conferencing, and latency-sensitive apps." },
       { icon: "◈", title: "Scheduled Tests", detail: "Configurable test frequency. Runs against nearest server to minimize last-mile noise." },
       { icon: "↗", title: "Trend Detection", detail: "24hr and 7-day bandwidth trends. Surface gradual degradation before users notice." },
     ],
-    piRequirement: "iperf3 · speedtest-cli · scheduled cron",
+    applianceRequirement: "iperf3 · speedtest-cli · scheduled cron",
     accentColor: "#E8A020",
   },
   stormrunner: {
@@ -52,11 +52,11 @@ const RUNNERS: Record<string, RunnerDef> = {
     description: "Monitors broadcast and multicast traffic ratios versus unicast on your network segment. Plugs into a SPAN port to watch an entire VLAN. Alerts before a storm degrades performance.",
     capabilities: [
       { icon: "⚡", title: "Storm Detection", detail: "Identifies broadcast storms, ARP floods, multicast overwhelm, and STP loop indicators in real time." },
-      { icon: "◈", title: "SPAN Port Mode", detail: "Mirror an entire VLAN or trunk to the Pi. Watch all traffic without being in the data path." },
+      { icon: "◈", title: "SPAN Port Mode", detail: "Mirror an entire VLAN or trunk to the NetRunner Appliance. Watch all traffic without being in the data path." },
       { icon: "⬡", title: "Ratio Monitoring", detail: "Compares broadcast/multicast packet ratio to unicast baseline. Alerts when threshold is exceeded." },
       { icon: "≡", title: "Per-VLAN Breakdown", detail: "In trunk mode, breaks down traffic ratios per VLAN. Enterprise MSP upsell capability." },
     ],
-    piRequirement: "Promiscuous mode NIC · tcpdump + libpcap · SPAN port",
+    applianceRequirement: "Promiscuous mode NIC · tcpdump + libpcap · SPAN port",
     accentColor: "#ef4444",
   },
   commandrunner: {
@@ -64,14 +64,14 @@ const RUNNERS: Record<string, RunnerDef> = {
     phase: "3",
     phaseLabel: "Phase 3",
     tagline: "Not raw shell access. Pre-approved playbooks with full audit trails.",
-    description: "Managed CLI and playbook orchestration on the Pi. From basic diagnostics to MSP workflow automation — every command is signed, scoped, and logged.",
+    description: "Managed CLI and playbook orchestration on the NetRunner Appliance. From basic diagnostics to MSP workflow automation — every command is signed, scoped, and logged.",
     capabilities: [
       { icon: "▶", title: "Tier 1 — Diagnostics", detail: "ping, traceroute, DNS lookup, interface stats, service status. One-click from the dashboard." },
       { icon: "◈", title: "Tier 2 — Device Mgmt", detail: "Restart services, OTA agent updates, rotate device key, clear local cache, system health check." },
       { icon: "⬡", title: "Tier 3 — MSP Orchestration", detail: "Run named playbooks, schedule recurring tasks, trigger alert webhooks, multi-device workflows." },
       { icon: "≡", title: "Audit Trail", detail: "Every command signed and logged. Tenant admin controls which tiers are enabled per device." },
     ],
-    piRequirement: "subprocess + signed playbook engine · audit log",
+    applianceRequirement: "subprocess + signed playbook engine · audit log",
     accentColor: "#a78bfa",
   },
 };
@@ -177,15 +177,15 @@ export default function ComingSoonPage({ runner }: ComingSoonPageProps) {
           </div>
         </div>
 
-        {/* Pi requirement + notify row */}
+        {/* Appliance requirement + notify row */}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <div className="vl-card" style={{ margin: 0, flex: "1 1 300px" }}>
             <div className="vl-card-body" style={{ padding: "18px 20px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--text-dim)", marginBottom: 8 }}>
-                Pi Agent Requirement
+                NetRunner Appliance Requirement
               </div>
               <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.7 }}>
-                {def.piRequirement}
+                {def.applianceRequirement}
               </div>
             </div>
           </div>
