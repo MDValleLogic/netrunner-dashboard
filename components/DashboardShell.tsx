@@ -4,7 +4,6 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// ─── SVG Icons ────────────────────────────────────────────────────
 const Icon = {
   grid: () => (
     <svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -37,6 +36,13 @@ const Icon = {
       <path d="M6 4V2M8 4V2M10 4V2M6 14v-2M8 14v-2M10 14v-2M4 6H2M4 8H2M4 10H2M14 6h-2M14 8h-2M14 10h-2"/>
     </svg>
   ),
+  users: () => (
+    <svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="6" cy="5" r="2.5"/>
+      <path d="M1 13c0-2.5 2-4 5-4s5 1.5 5 4"/>
+      <path d="M11 2.5a2.5 2.5 0 0 1 0 5M15 13c0-2-1.5-3.5-4-3.8"/>
+    </svg>
+  ),
   route: () => (
     <svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <circle cx="3" cy="4" r="2"/>
@@ -64,7 +70,6 @@ const Icon = {
   ),
 };
 
-// ─── Nav config ───────────────────────────────────────────────────
 const NAV: Array<{
   section: string;
   links: Array<{ href: string; label: string; icon: keyof typeof Icon; phase?: string; disabled?: boolean }>;
@@ -90,20 +95,18 @@ const NAV: Array<{
   {
     section: "System",
     links: [
-      { href: "/setup", label: "Device Setup", icon: "cpu" },
+      { href: "/setup",          label: "Device Setup", icon: "cpu"   },
+      { href: "/settings/users", label: "Users",        icon: "users" },
     ],
   },
 ];
 
-// ─── Component ────────────────────────────────────────────────────
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
     <div className="vl-shell">
-      {/* Sidebar */}
       <aside className="vl-sidebar">
-        {/* Logo */}
         <div className="vl-sidebar-logo">
           <img
             src="/vallelogic-logo-white.png"
@@ -112,7 +115,6 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           />
         </div>
 
-        {/* Nav */}
         <nav className="vl-nav">
           {NAV.map((group) => (
             <div key={group.section}>
@@ -138,9 +140,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                           fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
                           padding: "2px 5px", borderRadius: 4,
                           background: "rgba(232,160,32,0.15)",
-                          color: "#E8A020",
-                          textTransform: "uppercase",
-                          lineHeight: 1,
+                          color: "#E8A020", textTransform: "uppercase", lineHeight: 1,
                         }}>
                           {link.phase}
                         </span>
@@ -164,14 +164,12 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           ))}
         </nav>
 
-        {/* Footer */}
         <div className="vl-sidebar-footer">
           <div style={{ marginBottom: 3 }}>vallelogic.com</div>
           <div style={{ fontSize: 10 }}>v0.2 · MVP</div>
         </div>
       </aside>
 
-      {/* Main content */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         {children}
       </div>
