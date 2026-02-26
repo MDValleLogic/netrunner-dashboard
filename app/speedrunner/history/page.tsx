@@ -52,14 +52,14 @@ function LineChart({ data, metric, label, unit, height=160 }: ChartProps) {
         {yLabels.map((v,i) => (
           <g key={i}>
             <line x1={PAD.left} y1={yPos(v)} x2={W-PAD.right} y2={yPos(v)} stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
-            <text x={PAD.left-6} y={yPos(v)+4} textAnchor="end" fontSize="9" fill="rgba(255,255,255,0.3)">
+            <text x={PAD.left-6} y={yPos(v)+4} textAnchor="end" fontSize="10" fill="rgba(255,255,255,0.6)" fontWeight="600">
               {v >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}
             </text>
           </g>
         ))}
         {/* Time labels */}
         {timeLabels.map((t,i) => (
-          <text key={i} x={xPos(t)} y={H-4} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.3)">{fmtShort(t)}</text>
+          <text key={i} x={xPos(t)} y={H-4} textAnchor="middle" fontSize="9" fill="rgba(255,255,255,0.5)">{fmtShort(t)}</text>
         ))}
         {/* Lines per region */}
         {regions.map(region => {
@@ -71,9 +71,14 @@ function LineChart({ data, metric, label, unit, height=160 }: ChartProps) {
             <g key={region}>
               <path d={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" opacity="0.85"/>
               {pts.map((p,i) => (
-                <circle key={i} cx={xPos(p.ts_utc)} cy={yPos(p[metric] as number)} r="2.5" fill={color} opacity="0.9">
-                  <title>{region}: {(p[metric] as number).toFixed(1)}{unit} @ {fmtTime(p.ts_utc)}</title>
-                </circle>
+                <g key={i}>
+                  <circle cx={xPos(p.ts_utc)} cy={yPos(p[metric] as number)} r="3" fill={color} opacity="0.9">
+                    <title>{region}: {(p[metric] as number).toFixed(1)}{unit} @ {fmtTime(p.ts_utc)}</title>
+                  </circle>
+                  <text x={xPos(p.ts_utc)} y={yPos(p[metric] as number)-7} textAnchor="middle" fontSize="9" fill={color} fontWeight="700" opacity="0.9">
+                    {(p[metric] as number).toFixed(0)}
+                  </text>
+                </g>
               ))}
             </g>
           );
