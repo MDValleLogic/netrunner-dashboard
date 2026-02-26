@@ -31,8 +31,13 @@ const NAV = [
     { href: "/routerunner/history",  label: "History",     icon: "clock"    },
     { href: "/routerunner/config",   label: "Config",      icon: "settings" },
   ]},
+  { section: "SPEEDRUNNER", links: [
+    { href: "/speedrunner/overview", label: "Overview",    icon: "zap"      },
+    { href: "/speedrunner/live",     label: "Live Feed",   icon: "activity" },
+    { href: "/speedrunner/history",  label: "History",     icon: "clock"    },
+    { href: "/speedrunner/config",   label: "Config",      icon: "settings" },
+  ]},
   { section: "Coming Soon", links: [
-    { href: "/speedrunner",   label: "SpeedRunner",   icon: "zap",      phase: "P2", disabled: true },
     { href: "/stormrunner",   label: "StormRunner",   icon: "storm",    phase: "P3", disabled: true },
     { href: "/commandrunner", label: "CommandRunner", icon: "terminal", phase: "P3", disabled: true },
   ]},

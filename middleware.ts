@@ -21,7 +21,7 @@ export async function middleware(req: NextRequest) {
     pathname === "/api/heartbeat" ||
     pathname === "/api/device-config" ||
     pathname === "/api/measurements/ingest" ||
-    pathname.startsWith("/api/routerunner")
+    pathname.startsWith("/api/routerunner") || pathname.startsWith("/api/speedrunner")
   ) {
     return NextResponse.next();
   }

@@ -1,4 +1,4 @@
-import ComingSoonPage from "@/components/ComingSoonPage";
-export default function SpeedRunnerPage() {
-  return <ComingSoonPage runner="speedrunner" />;
+import { redirect } from "next/navigation";
+export default function SpeedRunnerRoot() {
+  redirect("/speedrunner/overview");
 }
