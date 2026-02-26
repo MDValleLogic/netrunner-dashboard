@@ -1,6 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
 const DEVICE_ID = "pi-403c60f1-2557-408f-a3c8-ca7acaf034f5";
+
+const TARGET_LABELS: Record<string, string> = {
+  "8.8.8.8":  "Google DNS (8.8.8.8)",
+  "1.1.1.1":  "Cloudflare DNS (1.1.1.1)",
+  "8.8.4.4":  "Google DNS (8.8.4.4)",
+  "1.0.0.1":  "Cloudflare DNS (1.0.0.1)",
+};
+function targetLabel(t: string) { return TARGET_LABELS[t] || t; }
+
 type Hop = { hop_num: number; ip: string|null; hostname: string|null; rtt_ms: number|null; timeout: boolean; org: string; isp: string; asn: string; country: string; city: string; };
 type Trace = { id: number; ts_utc: string; target: string; dest_ip: string; hop_count: number; total_hops: number; };
 function ispColor(org: string) {
@@ -62,7 +71,7 @@ export default function RouteRunnerLive() {
         {trace && (
           <div className="vl-card">
             <div className="vl-card-header">
-              <span style={{fontFamily:"var(--font-mono)",fontSize:13,fontWeight:700,color:"var(--accent)"}}>→ {trace.target}</span>
+              <span style={{fontFamily:"var(--font-mono)",fontSize:13,fontWeight:700,color:"var(--accent)"}}>→ {targetLabel(trace.target)}</span>
               <span style={{fontSize:11,color:"var(--text-dim)"}}>{fmtTime(trace.ts_utc)}</span>
             </div>
             <div className="vl-card-body">

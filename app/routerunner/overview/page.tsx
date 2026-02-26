@@ -1,6 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
 const DEVICE_ID = "pi-403c60f1-2557-408f-a3c8-ca7acaf034f5";
+
+const TARGET_LABELS: Record<string, string> = {
+  "8.8.8.8":  "Google DNS (8.8.8.8)",
+  "1.1.1.1":  "Cloudflare DNS (1.1.1.1)",
+  "8.8.4.4":  "Google DNS (8.8.4.4)",
+  "1.0.0.1":  "Cloudflare DNS (1.0.0.1)",
+};
+function targetLabel(t: string) { return TARGET_LABELS[t] || t; }
+
 type Hop = { hop_num: number; ip: string|null; hostname: string|null; rtt_ms: number|null; timeout: boolean; org: string; isp: string; asn: string; country: string; city: string; };
 type Trace = { id: number; ts_utc: string; target: string; dest_ip: string; hop_count: number; total_hops: number; };
 function classifyDestination(org: string, hostname: string) {
@@ -119,7 +128,7 @@ export default function RouteRunnerOverview() {
                   </div>
                   <div style={{background:`${dest.color}18`,border:`1px solid ${dest.color}50`,borderRadius:12,padding:"16px 20px",minWidth:160}}>
                     <div style={{fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:dest.color,marginBottom:8}}>{dest.icon} {dest.label}</div>
-                    <div style={{fontFamily:"var(--font-mono)",fontSize:12,color:"var(--text-primary)",fontWeight:700,marginBottom:4}}>{trace?.target}</div>
+                    <div style={{fontFamily:"var(--font-mono)",fontSize:12,color:"var(--text-primary)",fontWeight:700,marginBottom:4}}>{targetLabel(trace?.target||"")}</div>
                     <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--text-dim)",marginBottom:4}}>{trace?.dest_ip}</div>
                     <div style={{fontSize:10,color:"var(--text-dim)"}}>{[lastHop.city,lastHop.country].filter(Boolean).join(", ")}</div>
                     <div style={{marginTop:6,fontSize:10,color:dest.color}}>{lastHop.asn?.split(" ")[0]}</div>
@@ -153,7 +162,7 @@ export default function RouteRunnerOverview() {
           <div className="vl-card">
             <div className="vl-card-header">
               <span style={{fontSize:13,fontWeight:600}}>Hop Detail</span>
-              <span style={{fontSize:11,color:"var(--text-dim)"}}>{hops.length} hops to {trace?.target}</span>
+              <span style={{fontSize:11,color:"var(--text-dim)"}}>{hops.length} hops to {targetLabel(trace?.target||"")}</span>
             </div>
             <div style={{overflowX:"auto"}}>
               <table className="vl-table">
