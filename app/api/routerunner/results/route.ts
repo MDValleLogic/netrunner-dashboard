@@ -20,11 +20,11 @@ export async function GET(req: NextRequest) {
           ORDER BY ts_utc DESC LIMIT ${limit}
         `;
 
-    if (!traces.length) {
+    if (!(traces as any[]).length) {
       return NextResponse.json({ ok: true, traces: [], hops: [], targets: [] });
     }
 
-    const latest_trace_id = traces[0].id;
+    const latest_trace_id = (traces as any)[0].id;
     const hops = await sql`
       SELECT * FROM route_hops
       WHERE trace_id = ${latest_trace_id}
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       latest_trace: traces[0],
       traces,
       hops,
-      targets: targets.map((t: any) => t.target),
+      targets: (targets as any[]).map((t: any) => t.target),
     });
 
   } catch (e: any) {
