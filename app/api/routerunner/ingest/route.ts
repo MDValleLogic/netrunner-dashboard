@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       RETURNING id
     `;
 
-    const trace_id = trace[0].id;
+    const trace_id = (trace as any)[0].id;
 
     for (const hop of hops) {
       await sql`
