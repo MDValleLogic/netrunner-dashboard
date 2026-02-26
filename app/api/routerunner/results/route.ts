@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       device_id,
-      latest_trace: traces[0],
+      latest_trace: (traces as any)[0],
       traces,
       hops,
       targets: (targets as any[]).map((t: any) => t.target),
