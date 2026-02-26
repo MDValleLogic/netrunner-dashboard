@@ -26,7 +26,7 @@ const NAV = [
     { href: "/webrunner/config",  label: "Config",        icon: "settings" },
   ]},
   { section: "ROUTERUNNER", links: [
-    { href: "/routerunner/overview", label: "Overview",    icon: "map"      },
+    { href: "/routerunner/overview", label: "Overview",    icon: "route"    },
     { href: "/routerunner/live",     label: "Live Feed",   icon: "activity" },
     { href: "/routerunner/history",  label: "History",     icon: "clock"    },
     { href: "/routerunner/config",   label: "Config",      icon: "settings" },
