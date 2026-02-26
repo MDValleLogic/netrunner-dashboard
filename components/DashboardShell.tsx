@@ -26,7 +26,7 @@ const NAV = [
     { href: "/webrunner/config",  label: "Config",        icon: "settings" },
   ]},
   { section: "Coming Soon", links: [
-    { href: "/routerunner",   label: "RouteRunner",   icon: "route",    phase: "P2", disabled: true },
+    { href: "/routerunner",   label: "RouteRunner",   icon: "route",    phase: "P2", disabled: false },
     { href: "/speedrunner",   label: "SpeedRunner",   icon: "zap",      phase: "P2", disabled: true },
     { href: "/stormrunner",   label: "StormRunner",   icon: "storm",    phase: "P3", disabled: true },
     { href: "/commandrunner", label: "CommandRunner", icon: "terminal", phase: "P3", disabled: true },
