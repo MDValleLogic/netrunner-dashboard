@@ -20,7 +20,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/v1/") ||
     pathname === "/api/heartbeat" ||
     pathname === "/api/device-config" ||
-    pathname === "/api/measurements/ingest"
+    pathname === "/api/measurements/ingest" ||
+    pathname.startsWith("/api/routerunner")
   ) {
     return NextResponse.next();
   }
