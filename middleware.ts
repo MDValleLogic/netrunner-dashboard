@@ -5,7 +5,6 @@ import { getToken } from "next-auth/jwt";
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Allow Next.js internals & public pages
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico") ||
@@ -15,18 +14,18 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // ✅ DEVICE PLANE — MUST BE PUBLIC (probe calls these)
   if (
     pathname.startsWith("/v1/") ||
     pathname === "/api/heartbeat" ||
     pathname === "/api/device-config" ||
     pathname === "/api/measurements/ingest" ||
-    pathname.startsWith("/api/routerunner") || pathname.startsWith("/api/speedrunner")
+    pathname.startsWith("/api/routerunner") ||
+    pathname.startsWith("/api/speedrunner") ||
+    pathname.startsWith("/api/devices")
   ) {
     return NextResponse.next();
   }
 
-  // UI requires auth
   const token = await getToken({
     req,
     secret: process.env.NEXTAUTH_SECRET,
