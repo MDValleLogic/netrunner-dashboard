@@ -42,7 +42,7 @@ const NAV = [
     { href: "/commandrunner", label: "CommandRunner", icon: "terminal", phase: "P3", disabled: true },
   ]},
   { section: "System", links: [
-    { href: "/setup",          label: "Device Setup", icon: "cpu"   },
+    { href: "/settings/devices",          label: "Device Setup", icon: "cpu"   },
     { href: "/settings/users", label: "Users",        icon: "users" },
   ]},
 ];
