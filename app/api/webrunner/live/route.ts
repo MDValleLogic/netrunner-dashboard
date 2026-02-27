@@ -9,8 +9,8 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const window_minutes = parseInt(searchParams.get("window_minutes") || "60");
+    const cutoff = new Date(Date.now() - window_minutes * 60 * 1000).toISOString();
 
-    // Get device for this tenant
     const devices = await sql`
       SELECT device_id FROM devices 
       WHERE tenant_id = ${token.tenantId as string} AND claimed = true
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       SELECT ts_utc, url, dns_ms, http_ms, http_err
       FROM measurements
       WHERE device_id = ${device_id}
-        AND ts_utc > NOW() - INTERVAL '1 minute' * ${window_minutes}
+        AND ts_utc > ${cutoff}::timestamptz
       ORDER BY ts_utc DESC
       LIMIT 500
     ` as any[];
