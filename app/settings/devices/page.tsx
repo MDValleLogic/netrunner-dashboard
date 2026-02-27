@@ -109,20 +109,20 @@ export default function DevicesPage() {
                   <div className="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center text-xl">📡</div>
                   <div>
                     <div className="text-white font-semibold">NetRunner Appliance</div>
-                    <div className="text-slate-400 text-sm font-mono">{d.nr_serial}</div>
+                    <div className="text-cyan-400 text-sm font-mono tracking-wider">{d.nr_serial}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-8 text-sm">
                   <div>
-                    <div className="text-slate-500 text-xs">VLOS</div>
-                    <div className="text-slate-300">{d.vlos_version}</div>
+                    <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">ValleLogic OS</div>
+                    <div className="text-slate-300">{d.vlos_version || "—"}</div>
                   </div>
                   <div>
-                    <div className="text-slate-500 text-xs">IP</div>
-                    <div className="text-slate-300 font-mono">{d.ip}</div>
+                    <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">IP Address</div>
+                    <div className="text-slate-300 font-mono">{d.ip || "—"}</div>
                   </div>
                   <div>
-                    <div className="text-slate-500 text-xs">LAST SEEN</div>
+                    <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">Last Seen</div>
                     <div className="text-slate-300">{timeAgo(d.last_seen)}</div>
                   </div>
                   <div className="flex items-center gap-2">
