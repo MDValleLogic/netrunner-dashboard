@@ -223,7 +223,7 @@ export default function WebRunnerLivePage() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", fontFamily: "var(--font-mono)", marginBottom: 2 }}>
-                    {live?.device?.hostname || deviceId}
+                    {live?.device?.hostname || "NetRunner Appliance"}
                   </div>
                   <div style={{ fontSize: 11, color: "var(--text-dim)" }}>Edge monitoring appliance</div>
                 </div>
