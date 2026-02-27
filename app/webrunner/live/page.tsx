@@ -140,7 +140,7 @@ export default function WebRunnerLivePage() {
     const countdown = setInterval(() => setTick((t) => t + 1), 1_000);
     return () => { clearInterval(poll); clearInterval(countdown); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deviceId, windowMinutes]);
+  }, [windowMinutes]);
 
   const chartData = useMemo(() =>
     (series?.points || []).map((p) => ({
