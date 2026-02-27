@@ -4,19 +4,22 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { device_id, nr_serial, cpu_serial, mac_eth0, hostname, ip, vlos_version } = body;
+    const { device_id, nr_serial, mac_eth0, hostname, ip, vlos_version, api_key } = body;
 
     if (!device_id || !nr_serial) {
       return NextResponse.json({ ok: false, error: "missing fields" }, { status: 400 });
     }
 
+    // Hash the api_key or use a placeholder for unregistered devices
+    const keyHash = api_key || device_id;
+
     await sql`
       INSERT INTO devices (
         device_id, nr_serial, mac_eth0, hostname,
-        ip, vlos_version, mode, claimed, last_seen
+        ip, vlos_version, mode, claimed, last_seen, device_key_hash
       ) VALUES (
         ${device_id}, ${nr_serial}, ${mac_eth0}, ${hostname},
-        ${ip}, ${vlos_version}, 'cloud', false, NOW()
+        ${ip}, ${vlos_version}, 'cloud', false, NOW(), ${keyHash}
       )
       ON CONFLICT (device_id) DO UPDATE SET
         nr_serial    = EXCLUDED.nr_serial,
