@@ -1,53 +1,39 @@
-import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const device_id = searchParams.get("device_id") || "pi-403c60f1-2557-408f-a3c8-ca7acaf034f5";
-  const target    = searchParams.get("target") || null;
-  const limit     = parseInt(searchParams.get("limit") || "10");
-
   try {
-    const traces = target
-      ? await sql`
-          SELECT * FROM route_traces
-          WHERE device_id = ${device_id} AND target = ${target}
-          ORDER BY ts_utc DESC LIMIT ${limit}
-        `
-      : await sql`
-          SELECT * FROM route_traces
-          WHERE device_id = ${device_id}
-          ORDER BY ts_utc DESC LIMIT ${limit}
-        `;
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-    if (!(traces as any[]).length) {
-      return NextResponse.json({ ok: true, traces: [], hops: [], targets: [] });
-    }
+    const { searchParams } = new URL(req.url);
+    const target = searchParams.get("target");
+    const limit  = parseInt(searchParams.get("limit") || "20");
 
-    const latest_trace_id = (traces as any)[0].id;
-    const hops = await sql`
-      SELECT * FROM route_hops
-      WHERE trace_id = ${latest_trace_id}
-      ORDER BY hop_num ASC
-    `;
+    const devices = await sql`
+      SELECT device_id FROM devices 
+      WHERE tenant_id = ${token.tenantId as string} AND claimed = true
+      ORDER BY last_seen DESC LIMIT 1
+    ` as any[];
 
-    const targets = await sql`
-      SELECT DISTINCT target FROM route_traces
-      WHERE device_id = ${device_id}
-      ORDER BY target
-    `;
+    if (!devices.length) return NextResponse.json({ traces: [] });
+    const device_id = devices[0].device_id;
 
-    return NextResponse.json({
-      ok: true,
-      device_id,
-      latest_trace: (traces as any)[0],
-      traces,
-      hops,
-      targets: (targets as any[]).map((t: any) => t.target),
-    });
+    const traces = await sql`
+      SELECT t.id, t.ts_utc, t.target, t.dest_ip, t.hop_count, t.total_hops,
+        json_agg(h ORDER BY h.hop_num) AS hops
+      FROM route_traces t
+      LEFT JOIN route_hops h ON h.trace_id = t.id
+      WHERE t.device_id = ${device_id}
+        ${target ? sql`AND t.target = ${target}` : sql``}
+      GROUP BY t.id
+      ORDER BY t.ts_utc DESC
+      LIMIT ${limit}
+    ` as any[];
 
+    return NextResponse.json({ traces });
   } catch (e: any) {
-    console.error("[routerunner/results]", e);
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
