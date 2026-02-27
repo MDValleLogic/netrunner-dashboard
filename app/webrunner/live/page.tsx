@@ -108,7 +108,7 @@ function PulseDot({ online }: { online: boolean }) {
 }
 
 export default function WebRunnerLivePage() {
-  const [deviceId, setDeviceId] = useState("pi-001");
+  // device resolved server-side from tenant
   const [windowMinutes, setWindow] = useState(60);
   const [live, setLive]   = useState<LiveResponse | null>(null);
   const [series, setSeries] = useState<TimeseriesResponse | null>(null);
@@ -119,8 +119,8 @@ export default function WebRunnerLivePage() {
     try {
       setErr("");
       const [lR, tR] = await Promise.all([
-        fetch(`/api/webrunner/live?device_id=${deviceId}&window_minutes=${windowMinutes}&limit=100`),
-        fetch(`/api/webrunner/timeseries?device_id=${deviceId}&window_minutes=${windowMinutes}&bucket_seconds=60`),
+        fetch(`/api/webrunner/live?window_minutes=${windowMinutes}&limit=100`),
+        fetch(`/api/webrunner/timeseries?window_minutes=${windowMinutes}&bucket_seconds=60`),
       ]);
       const lJ = await lR.json();
       const tJ = await tR.json();
