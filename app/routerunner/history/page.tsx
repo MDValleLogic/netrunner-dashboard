@@ -12,6 +12,7 @@ export default function RouteRunnerHistory() {
     setLoading(true);
     try {
       const tParam = t !== undefined ? t : target;
+      const url = `/api/routerunner/results?limit=50${tParam ? "&target="+encodeURIComponent(tParam) : ""}`;
       const j = await fetch(url).then(r => r.json());
       if (!j.traces) return;
       setTraces(j.traces || []);
