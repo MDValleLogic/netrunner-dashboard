@@ -9,6 +9,7 @@ import {
 type LiveMeasurement = {
   id: string | number;
   device_id: string;
+  nr_serial: string;
   ts_utc: string;
   url: string;
   http_ms: number | null;
@@ -18,6 +19,7 @@ type LiveMeasurement = {
 
 type LiveDevice = {
   device_id: string;
+  nr_serial: string;
   tenant_id: string | null;
   claimed: boolean;
   hostname: string | null;
@@ -29,6 +31,7 @@ type LiveDevice = {
 type LiveResponse = {
   ok: boolean;
   device_id: string;
+  nr_serial: string;
   window_minutes: number;
   limit: number;
   device: LiveDevice | null;
@@ -47,6 +50,7 @@ type TimeseriesPoint = {
 type TimeseriesResponse = {
   ok: boolean;
   device_id: string;
+  nr_serial: string;
   points: TimeseriesPoint[];
 };
 
