@@ -14,7 +14,7 @@ export default function RouteRunnerHistory() {
       const tParam = t !== undefined ? t : target;
       const url = `/api/routerunner/results?device_id=${DEVICE_ID}&limit=50${tParam?`&target=${encodeURIComponent(tParam)}`:""}`;
       const j = await fetch(url).then(r => r.json());
-      if (!j.ok) return;
+      if (!j.traces) return;
       setTraces(j.traces || []);
       if (j.targets?.length) setTargets(j.targets);
     } finally { setLoading(false); }
