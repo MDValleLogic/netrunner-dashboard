@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-const DEVICE_ID = "pi-403c60f1-2557-408f-a3c8-ca7acaf034f5";
+
 type Trace = { id: number; ts_utc: string; target: string; dest_ip: string; hop_count: number; total_hops: number; };
 function fmtTime(iso: string) { try { return new Date(iso).toLocaleString(); } catch { return iso; } }
 export default function RouteRunnerHistory() {
@@ -12,7 +12,6 @@ export default function RouteRunnerHistory() {
     setLoading(true);
     try {
       const tParam = t !== undefined ? t : target;
-      const url = `/api/routerunner/results?device_id=${DEVICE_ID}&limit=50${tParam?`&target=${encodeURIComponent(tParam)}`:""}`;
       const j = await fetch(url).then(r => r.json());
       if (!j.traces) return;
       setTraces(j.traces || []);

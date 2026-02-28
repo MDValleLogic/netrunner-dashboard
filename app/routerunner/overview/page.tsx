@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-const DEVICE_ID = "pi-403c60f1-2557-408f-a3c8-ca7acaf034f5";
+
 
 const TARGET_LABELS: Record<string, string> = {
   "8.8.8.8":  "Google DNS (8.8.8.8)",
@@ -49,7 +49,7 @@ export default function RouteRunnerOverview() {
   async function fetchData(t?: string) {
     try {
       const tParam = t !== undefined ? t : target;
-      const url = `/api/routerunner/results?device_id=${DEVICE_ID}${tParam ? `&target=${encodeURIComponent(tParam)}` : ""}`;
+      const url = `/api/routerunner/results${tParam ? "?target="+encodeURIComponent(tParam) : ""}`;
       const j = await fetch(url).then(r => r.json());
       if (!j.traces) return;
       setTrace(j.latest_trace || null);
