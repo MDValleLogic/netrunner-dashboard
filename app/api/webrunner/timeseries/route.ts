@@ -23,9 +23,9 @@ export async function GET(req: NextRequest) {
     const buckets = await sql`
       SELECT
         date_trunc('minute', ts_utc) AS bucket,
-        AVG(http_ms) FILTER (WHERE http_err IS NULL) AS avg_ms,
+        AVG(http_ms) FILTER (WHERE http_err IS NULL OR http_err = '') AS avg_ms,
         COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE http_err IS NULL) AS success
+        COUNT(*) FILTER (WHERE http_err IS NULL OR http_err = '') AS success
       FROM measurements
       WHERE device_id = ${device_id}
         AND ts_utc > NOW() - INTERVAL '1 minute' * ${window_minutes}

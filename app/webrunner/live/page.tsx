@@ -234,7 +234,7 @@ export default function WebRunnerLivePage() {
                 <div>
                   <div className="vl-stat-label">Device ID</div>
                   <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)", marginTop: 3 }}>
-                    {live?.device?.device_id || "—"}
+                    {live?.device?.nr_serial || live?.device?.device_id || "—"}
                   </div>
                 </div>
                 <div>
