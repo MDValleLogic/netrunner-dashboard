@@ -54,7 +54,7 @@ export default function RouteRunnerOverview() {
       if (!j.traces) return;
       const latest = j.traces?.[0] || null; setTrace(latest);
       setHops(latest?.hops || []);
-      const allTargets = [...new Set(j.traces.map((t: any) => t.target))]; if (allTargets.length) { setTargets(allTargets); if (!target && !t) setTarget(j.targets[0]); }
+      const allTargets = [...new Set(j.traces.map((t: any) => t.target))] as string[]; if (allTargets.length) { setTargets(allTargets); if (!target && !t) setTarget(j.targets[0]); }
     } finally { setLoading(false); }
   }
   useEffect(() => {
