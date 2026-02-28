@@ -131,7 +131,7 @@ export default function WebRunnerLivePage() {
       if (!lJ.measurements) throw new Error("live endpoint failed");
       if (!tJ.buckets) throw new Error("timeseries endpoint failed");
       setLive({ ...lJ, measurements: lJ.measurements.map((m: any) => ({ ...m, success: !m.http_err || m.http_err === "" })) });
-      setSeries({ points: tJ.buckets.map((b: any) => ({ ts_utc: b.bucket, avg_latency_ms: b.avg_ms, ok_samples: b.success, fail_samples: b.total - b.success })) });
+      setSeries({ ok: true, device_id: "", nr_serial: "", points: tJ.buckets.map((b: any) => ({ ts_utc: b.bucket, avg_latency_ms: b.avg_ms, ok_samples: b.success, fail_samples: b.total - b.success })) });
       setTick(0);
     } catch (e: any) {
       setErr(e.message || "Unknown error");
