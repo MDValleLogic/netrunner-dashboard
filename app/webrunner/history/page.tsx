@@ -169,7 +169,7 @@ export default function WebRunnerHistoryPage() {
       });
       const r = await fetch(`/api/webrunner/timeseries?${qp}`);
       const j = await r.json();
-      if (!j.ok) throw new Error(j.error || "Failed");
+      if (!j.buckets) throw new Error(j.error || "Failed");
       setData(j);
     } catch (e: any) {
       setErr(e.message || "Unknown error");
