@@ -150,7 +150,7 @@ export default function WebRunnerHistoryPage() {
 
   // Load devices
   useEffect(() => {
-    fetch("/api/devices").then((r) => r.json()).then((j) => {
+    fetch("/api/devices/list").then((r) => r.json()).then((j) => {
       if (j?.ok && Array.isArray(j.devices)) {
         setDevices(j.devices);
         if (j.devices.length > 0) setDeviceId(j.devices[0].device_id);
