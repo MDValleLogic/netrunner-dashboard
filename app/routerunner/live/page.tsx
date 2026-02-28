@@ -39,9 +39,9 @@ export default function RouteRunnerLive() {
       const url = `/api/routerunner/results${tParam?`?target=${encodeURIComponent(tParam)}`:""}`;
       const j = await fetch(url).then(r => r.json());
       if (!j.traces) return;
-      setTrace(j.latest_trace || null);
-      setHops(j.hops || []);
-      if (j.targets?.length) { setTargets(j.targets); if (!target&&!t) setTarget(j.targets[0]); }
+      const latest = j.traces?.[0] || null; setTrace(latest);
+      setHops(latest?.hops || []);
+      const allTargets = [...new Set(j.traces.map((tr: any) => tr.target))] as string[]; if (allTargets.length) { setTargets(allTargets); if (!target&&!t) setTarget(allTargets[0]); }
     } finally { setLoading(false); }
   }
   useEffect(() => {
