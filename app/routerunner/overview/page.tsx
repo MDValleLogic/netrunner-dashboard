@@ -51,7 +51,7 @@ export default function RouteRunnerOverview() {
       const tParam = t !== undefined ? t : target;
       const url = `/api/routerunner/results?device_id=${DEVICE_ID}${tParam ? `&target=${encodeURIComponent(tParam)}` : ""}`;
       const j = await fetch(url).then(r => r.json());
-      if (!j.ok) return;
+      if (!j.traces) return;
       setTrace(j.latest_trace || null);
       setHops(j.hops || []);
       if (j.targets?.length) { setTargets(j.targets); if (!target && !t) setTarget(j.targets[0]); }
