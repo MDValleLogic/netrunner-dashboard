@@ -130,7 +130,7 @@ export default function WebRunnerLivePage() {
       const tJ = await tR.json();
       if (!lJ.measurements) throw new Error("live endpoint failed");
       if (!tJ.buckets) throw new Error("timeseries endpoint failed");
-      setLive(lJ);
+      setLive({ ...lJ, measurements: lJ.measurements.map((m: any) => ({ ...m, success: !m.http_err || m.http_err === "" })) });
       setSeries(tJ);
       setTick(0);
     } catch (e: any) {
