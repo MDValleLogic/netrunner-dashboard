@@ -241,7 +241,7 @@ export default function DashboardPage() {
                 <select className="vl-select" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
                   {devices.length === 0
                     ? <option value="">No devices registered</option>
-                    : devices.map((d) => <option key={d.device_id} value={d.device_id}>{d.device_id}</option>)
+                    : devices.map((d) => <option key={d.device_id} value={d.device_id}>{d.nr_serial || d.device_id}</option>)
                   }
                 </select>
               </div>
