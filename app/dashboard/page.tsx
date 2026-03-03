@@ -11,7 +11,7 @@ type TimeseriesResp = {
   ok: boolean; device_id: string; since_minutes: number;
   urls: string[]; points: number; series: Record<string, Point[]>; error?: string;
 };
-type DeviceRow = { device_id: string; updated_at?: string; };
+type DeviceRow = { device_id: string; nr_serial?: string; updated_at?: string; };
 
 const CHART_COLORS = ["#3b82f6", "#10b981", "#f97316", "#a78bfa", "#ef4444"];
 const TIME_RANGES = [
