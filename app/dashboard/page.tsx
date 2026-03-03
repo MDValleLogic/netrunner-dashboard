@@ -118,7 +118,7 @@ export default function DashboardPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    fetch("/api/devices")
+    fetch("/api/devices/list")
       .then((r) => r.json())
       .then((j) => {
         if (j?.ok && Array.isArray(j.devices) && j.devices.length > 0) {
@@ -321,7 +321,7 @@ export default function DashboardPage() {
                         {urls.map((u, idx) => (
                           <Line key={u} type="monotone" dataKey={u}
                             stroke={CHART_COLORS[idx % CHART_COLORS.length]}
-                            strokeWidth={2} dot={false} isAnimationActive={false}
+                            strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true}
                             activeDot={{ r: 4, fill: CHART_COLORS[idx % CHART_COLORS.length] }} />
                         ))}
                       </LineChart>
