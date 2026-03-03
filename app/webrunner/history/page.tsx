@@ -215,7 +215,7 @@ export default function WebRunnerHistoryPage() {
         </div>
         <div className="vl-topbar-spacer" />
         <select className="vl-select" value={deviceId} onChange={(e) => setDeviceId(e.target.value)} style={{ width: "auto" }}>
-          {devices.map((d) => <option key={d.device_id} value={d.device_id}>{d.device_id}</option>)}
+          {devices.map((d) => <option key={d.device_id} value={d.device_id}>{d.nr_serial || d.device_id}</option>)}
         </select>
         <select className="vl-select" value={window_} onChange={(e) => setWindow(Number(e.target.value))} style={{ width: "auto" }}>
           {WINDOWS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
