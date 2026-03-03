@@ -31,6 +31,7 @@ type HistoryData = {
 
 type DeviceRow = {
   device_id: string;
+  nr_serial?: string;
   updated_at?: string;
 };
 
