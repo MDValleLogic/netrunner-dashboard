@@ -131,10 +131,10 @@ function SSIDRow({ group }: { group: SSIDGroup }) {
       <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800/50 transition-colors">
         <span className="text-gray-500 flex-shrink-0 w-4">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
         <SignalBar signal={group.bestSignal} />
-        <span className="flex-1 font-mono text-sm text-gray-100 truncate min-w-0">{group.ssid}</span>
-        <span className="text-xs text-gray-500 font-mono flex-shrink-0">{group.apCount} AP{group.apCount !== 1 ? "s" : ""}</span>
-        <span className="text-xs font-mono flex-shrink-0 w-16 text-right" style={{ color: signalColor(group.bestSignal) }}>{group.bestSignal} dBm</span>
-        <span className="flex-shrink-0"><Badge label={group.band} variant={bandVariant(group.band)} /></span>
+        <span className="font-mono text-sm text-gray-100 truncate w-48 flex-shrink-0">{group.ssid}</span>
+        <span className="text-xs text-gray-500 font-mono w-16 flex-shrink-0">{group.apCount} AP{group.apCount !== 1 ? "s" : ""}</span>
+        <span className="text-xs font-mono flex-shrink-0 w-20" style={{ color: signalColor(group.bestSignal) }}>{group.bestSignal} dBm</span>
+        <span className="flex-shrink-0 w-20"><Badge label={group.band} variant={bandVariant(group.band)} /></span>
         <span className="flex-shrink-0"><Badge label={group.security} variant={securityVariant(group.security)} /></span>
       </button>
       {open && (
