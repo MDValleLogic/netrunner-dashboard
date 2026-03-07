@@ -8,8 +8,8 @@ export async function GET(req: NextRequest) {
     if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
-    const window_minutes = parseInt(searchParams.get("window") || "60");
-    const bucket_seconds = parseInt(searchParams.get("bucket") || "60");
+    const window_minutes = parseInt(searchParams.get("window_minutes") || "60");
+    const bucket_seconds = parseInt(searchParams.get("bucket_seconds") || "60");
 
     const devices = await sql`
       SELECT device_id FROM devices 
