@@ -15,6 +15,7 @@ const Icon = {
   route: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="3" cy="4" r="2"/><circle cx="13" cy="12" r="2"/><path d="M3 6c0 4 10 2 10 6"/></svg>),
   zap: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="9,1 5,9 8,9 7,15 11,7 8,7 9,1"/></svg>),
   storm: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 6.5A4.5 4.5 0 0 1 11.5 5a3 3 0 0 1-.5 6H4a3 3 0 0 1-1-5.8"/><path d="M7 10l-1.5 3M9 10l-1.5 3"/></svg>),
+  wifi: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 5.5a9.5 9.5 0 0 1 14 0"/><path d="M3.5 8a6 6 0 0 1 9 0"/><path d="M6 10.5a3 3 0 0 1 4 0"/><circle cx="8" cy="13" r="1" fill="currentColor" stroke="none"/></svg>),
   terminal: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="2" width="14" height="12" rx="2"/><polyline points="4,6 7,8 4,10"/><line x1="8" y1="10" x2="12" y2="10"/></svg>),
 };
 
