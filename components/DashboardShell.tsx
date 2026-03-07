@@ -37,6 +37,12 @@ const NAV = [
     { href: "/speedrunner/history",  label: "History",     icon: "clock"    },
     { href: "/speedrunner/config",   label: "Config",      icon: "settings" },
   ]},
+  { section: "RFRUNNER", links: [
+    { href: "/rfrunner/overview", label: "Overview",  icon: "wifi"     },
+    { href: "/rfrunner/live",     label: "Live Feed", icon: "activity" },
+    { href: "/rfrunner/history",  label: "History",   icon: "clock"    },
+    { href: "/rfrunner/config",   label: "Config",    icon: "settings" },
+  ]},
   { section: "Coming Soon", links: [
     { href: "/stormrunner",   label: "StormRunner",   icon: "storm",    phase: "P3", disabled: true },
     { href: "/commandrunner", label: "CommandRunner", icon: "terminal", phase: "P3", disabled: true },
