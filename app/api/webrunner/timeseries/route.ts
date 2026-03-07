@@ -10,9 +10,11 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const window_minutes = parseInt(searchParams.get("window_minutes") || "60");
     const bucket_seconds = parseInt(searchParams.get("bucket_seconds") || "60");
+    const cutoff = new Date(Date.now() - window_minutes * 60 * 1000).toISOString();
+    const bucket_interval = `${bucket_seconds} seconds`;
 
     const devices = await sql`
-      SELECT device_id FROM devices 
+      SELECT device_id FROM devices
       WHERE tenant_id = ${token.tenantId as string} AND claimed = true
       ORDER BY last_seen DESC LIMIT 1
     ` as any[];
@@ -28,7 +30,7 @@ export async function GET(req: NextRequest) {
         COUNT(*) FILTER (WHERE http_err IS NULL OR http_err = '') AS success
       FROM measurements
       WHERE device_id = ${device_id}
-        AND ts_utc > NOW() - INTERVAL '1 minute' * ${window_minutes}
+        AND ts_utc > ${cutoff}::timestamptz
       GROUP BY bucket
       ORDER BY bucket ASC
     ` as any[];
