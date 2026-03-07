@@ -6,17 +6,11 @@ import { ChevronDown, ChevronRight, Wifi, RefreshCw, Radio } from "lucide-react"
 interface RawNetwork {
   ssid: string;
   bssid: string;
-  signal: number;
+  signal_dbm: number;
   channel: number | null;
   band: string | null;
   security: string | null;
-  frequency: number | null;
-}
-
-interface ScanResult {
-  device_id: string;
-  scanned_at: string;
-  networks: RawNetwork[];
+  frequency_mhz: number | null;
 }
 
 interface BSSIDEntry {
@@ -35,8 +29,9 @@ interface SSIDGroup {
   bssids: BSSIDEntry[];
 }
 
-function inferBand(channel: number | null, band: string | null): string {
+function inferBand(channel: number | null, band: string | null, freq: number | null): string {
   if (band) return band;
+  if (freq) return freq < 3000 ? "2.4 GHz" : "5 GHz";
   if (channel === null) return "?";
   return channel <= 14 ? "2.4 GHz" : "5 GHz";
 }
@@ -64,20 +59,21 @@ function groupBySSID(networks: RawNetwork[]): SSIDGroup[] {
   const map = new Map<string, SSIDGroup>();
   for (const n of networks) {
     const ssid = n.ssid || "(hidden)";
-    const band = inferBand(n.channel, n.band);
+    const band = inferBand(n.channel, n.band, n.frequency_mhz);
+    const sig = n.signal_dbm;
     const existing = map.get(ssid);
     if (existing) {
       existing.apCount += 1;
-      if (n.signal > existing.bestSignal) existing.bestSignal = n.signal;
-      existing.bssids.push({ bssid: n.bssid, signal: n.signal, channel: n.channel, band });
+      if (sig > existing.bestSignal) existing.bestSignal = sig;
+      existing.bssids.push({ bssid: n.bssid, signal: sig, channel: n.channel, band });
     } else {
       map.set(ssid, {
         ssid,
         apCount: 1,
-        bestSignal: n.signal,
+        bestSignal: sig,
         band,
         security: n.security || "Open",
-        bssids: [{ bssid: n.bssid, signal: n.signal, channel: n.channel, band }],
+        bssids: [{ bssid: n.bssid, signal: sig, channel: n.channel, band }],
       });
     }
   }
@@ -169,11 +165,12 @@ function SSIDRow({ group }: { group: SSIDGroup }) {
 }
 
 export default function RFRunnerLivePage() {
-  const [scanData, setScanData] = useState<ScanResult | null>(null);
+  const [networks, setNetworks] = useState<RawNetwork[]>([]);
   const [groups, setGroups] = useState<SSIDGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [tsUtc, setTsUtc] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -182,9 +179,10 @@ export default function RFRunnerLivePage() {
       const res = await fetch("/api/rfrunner/live");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      const deviceData: ScanResult = Array.isArray(json.devices) ? json.devices[0] : json;
-      setScanData(deviceData);
-      setGroups(groupBySSID(deviceData?.networks ?? []));
+      const nets: RawNetwork[] = json.networks ?? [];
+      setNetworks(nets);
+      setGroups(groupBySSID(nets));
+      setTsUtc(json.ts_utc ?? null);
       setLastRefresh(new Date());
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
@@ -199,7 +197,7 @@ export default function RFRunnerLivePage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const totalAPs = groups.reduce((sum, g) => sum + g.apCount, 0);
+  const totalAPs = networks.length;
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
@@ -225,7 +223,7 @@ export default function RFRunnerLivePage() {
         </div>
       </div>
       {error && <div className="mb-4 px-4 py-3 rounded-lg bg-red-900/30 border border-red-700/50 text-red-400 text-sm font-mono">⚠ {error}</div>}
-      {loading && !scanData && <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-12 rounded-lg bg-gray-800/60 animate-pulse" />)}</div>}
+      {loading && !networks.length && <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-12 rounded-lg bg-gray-800/60 animate-pulse" />)}</div>}
       {!loading && groups.length === 0 && !error && (
         <div className="flex flex-col items-center justify-center py-20 text-gray-600">
           <Wifi size={40} className="mb-3 opacity-30" />
@@ -233,9 +231,9 @@ export default function RFRunnerLivePage() {
         </div>
       )}
       <div>{groups.map((g) => <SSIDRow key={g.ssid} group={g} />)}</div>
-      {scanData?.device_id && (
+      {tsUtc && (
         <div className="mt-6 text-[10px] font-mono text-gray-700 text-right">
-          device {scanData.device_id} · scanned {scanData.scanned_at ? new Date(scanData.scanned_at).toLocaleString() : "—"}
+          scan timestamp: {new Date(tsUtc).toLocaleString()}
         </div>
       )}
     </div>
