@@ -171,7 +171,7 @@ export default function WebRunnerHistoryPage() {
       const r = await fetch(`/api/webrunner/timeseries?${qp}`);
       const j = await r.json();
       if (!j.buckets) throw new Error(j.error || "Failed");
-      setData(j);
+      setData({ points: j.buckets.map((b) => ({ ts_utc: b.bucket, avg_latency_ms: b.avg_ms, ok_samples: b.success, fail_samples: b.total - b.success, samples: b.total })) });
     } catch (e: any) {
       setErr(e.message || "Unknown error");
     } finally {
