@@ -129,35 +129,33 @@ function SSIDRow({ group }: { group: SSIDGroup }) {
   return (
     <div className="border border-gray-700/60 rounded-lg overflow-hidden mb-2 bg-gray-900/60 hover:border-gray-600/80 transition-colors">
       <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800/50 transition-colors">
-        <span className="text-gray-500 flex-shrink-0 w-4">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
+        <span className="text-gray-500 flex-shrink-0">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
         <SignalBar signal={group.bestSignal} />
-        <span className="font-mono text-sm text-gray-100 truncate w-48 flex-shrink-0">{group.ssid}</span>
-        <span className="text-xs text-gray-500 font-mono w-16 flex-shrink-0">{group.apCount} AP{group.apCount !== 1 ? "s" : ""}</span>
-        <span className="text-xs font-mono flex-shrink-0 w-20" style={{ color: signalColor(group.bestSignal) }}>{group.bestSignal} dBm</span>
+        <span className="font-mono text-sm text-gray-100 w-44 flex-shrink-0 truncate">{group.ssid}</span>
+        <span className="text-xs text-gray-500 font-mono w-14 flex-shrink-0">{group.apCount} AP{group.apCount !== 1 ? "s" : ""}</span>
+        <span className="text-xs font-mono w-16 flex-shrink-0" style={{ color: signalColor(group.bestSignal) }}>{group.bestSignal} dBm</span>
         <span className="flex-shrink-0 w-20"><Badge label={group.band} variant={bandVariant(group.band)} /></span>
         <span className="flex-shrink-0"><Badge label={group.security} variant={securityVariant(group.security)} /></span>
       </button>
       {open && (
-        <div className="border-t border-gray-700/50 bg-gray-950/60">
-          <div className="px-4 py-2">
-            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-1 px-1">
-              <span>BSSID</span>
-              <span className="text-right">Channel</span>
-              <span className="text-right">Band</span>
-              <span className="text-right">Signal</span>
-            </div>
-            {group.bssids.sort((a, b) => b.signal - a.signal).map((b) => (
-              <div key={b.bssid} className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 items-center px-1 py-1.5 rounded hover:bg-gray-800/40 transition-colors">
-                <span className="font-mono text-xs text-gray-400">{b.bssid}</span>
-                <span className="font-mono text-xs text-gray-400 text-right">{b.channel !== null ? `ch ${b.channel}` : "—"}</span>
-                <span className="text-right"><Badge label={b.band} variant={bandVariant(b.band)} /></span>
-                <div className="flex items-center gap-2 justify-end">
-                  <SignalBar signal={b.signal} />
-                  <span className="font-mono text-xs w-16 text-right" style={{ color: signalColor(b.signal) }}>{b.signal} dBm</span>
-                </div>
-              </div>
-            ))}
+        <div className="border-t border-gray-700/50 bg-gray-950/60 px-4 py-2">
+          <div className="flex gap-4 text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-1 px-1">
+            <span className="w-36">BSSID</span>
+            <span className="w-16">Channel</span>
+            <span className="w-20">Band</span>
+            <span className="w-24">Signal</span>
           </div>
+          {group.bssids.sort((a, b) => b.signal - a.signal).map((b) => (
+            <div key={b.bssid} className="flex gap-4 items-center px-1 py-1.5 rounded hover:bg-gray-800/40 transition-colors">
+              <span className="font-mono text-xs text-gray-400 w-36">{b.bssid}</span>
+              <span className="font-mono text-xs text-gray-400 w-16">{b.channel !== null ? `ch ${b.channel}` : "—"}</span>
+              <span className="w-20"><Badge label={b.band} variant={bandVariant(b.band)} /></span>
+              <div className="flex items-center gap-2 w-24">
+                <SignalBar signal={b.signal} />
+                <span className="font-mono text-xs" style={{ color: signalColor(b.signal) }}>{b.signal} dBm</span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -197,11 +195,9 @@ export default function RFRunnerLivePage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const totalAPs = networks.length;
-
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 max-w-3xl">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
             <Radio size={20} className="text-blue-400" />
@@ -214,7 +210,7 @@ export default function RFRunnerLivePage() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-xs font-mono">
             <span className="px-3 py-1.5 rounded-full bg-gray-800 border border-gray-700 text-gray-300"><span className="text-white font-semibold">{groups.length}</span> SSIDs</span>
-            <span className="px-3 py-1.5 rounded-full bg-gray-800 border border-gray-700 text-gray-300"><span className="text-white font-semibold">{totalAPs}</span> APs</span>
+            <span className="px-3 py-1.5 rounded-full bg-gray-800 border border-gray-700 text-gray-300"><span className="text-white font-semibold">{networks.length}</span> APs</span>
           </div>
           <button onClick={fetchData} disabled={loading} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs text-gray-300 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50">
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
@@ -222,20 +218,23 @@ export default function RFRunnerLivePage() {
           </button>
         </div>
       </div>
-      {error && <div className="mb-4 px-4 py-3 rounded-lg bg-red-900/30 border border-red-700/50 text-red-400 text-sm font-mono">⚠ {error}</div>}
-      {loading && !networks.length && <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-12 rounded-lg bg-gray-800/60 animate-pulse" />)}</div>}
-      {!loading && groups.length === 0 && !error && (
-        <div className="flex flex-col items-center justify-center py-20 text-gray-600">
-          <Wifi size={40} className="mb-3 opacity-30" />
-          <p className="text-sm font-mono">No networks found in latest scan</p>
-        </div>
-      )}
-      <div>{groups.map((g) => <SSIDRow key={g.ssid} group={g} />)}</div>
-      {tsUtc && (
-        <div className="mt-6 text-[10px] font-mono text-gray-700 text-right">
-          scan timestamp: {new Date(tsUtc).toLocaleString()}
-        </div>
-      )}
+
+      <div className="max-w-3xl">
+        {error && <div className="mb-4 px-4 py-3 rounded-lg bg-red-900/30 border border-red-700/50 text-red-400 text-sm font-mono">⚠ {error}</div>}
+        {loading && !networks.length && <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-12 rounded-lg bg-gray-800/60 animate-pulse" />)}</div>}
+        {!loading && groups.length === 0 && !error && (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-600">
+            <Wifi size={40} className="mb-3 opacity-30" />
+            <p className="text-sm font-mono">No networks found in latest scan</p>
+          </div>
+        )}
+        <div>{groups.map((g) => <SSIDRow key={g.ssid} group={g} />)}</div>
+        {tsUtc && (
+          <div className="mt-4 text-[10px] font-mono text-gray-700 text-right">
+            scan timestamp: {new Date(tsUtc).toLocaleString()}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
