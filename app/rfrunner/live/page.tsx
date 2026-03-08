@@ -29,8 +29,14 @@ interface SSIDGroup {
   bssids: BSSIDEntry[];
 }
 
+function normalizeBand(band: string): string {
+  if (band.includes("2.4")) return "2.4 GHz";
+  if (band.includes("5")) return "5 GHz";
+  return band;
+}
+
 function inferBand(channel: number | null, band: string | null, freq: number | null): string {
-  if (band) return band;
+  if (band) return normalizeBand(band);
   if (freq) return freq < 3000 ? "2.4 GHz" : "5 GHz";
   if (channel === null) return "?";
   return channel <= 14 ? "2.4 GHz" : "5 GHz";
@@ -77,6 +83,12 @@ function groupBySSID(networks: RawNetwork[]): SSIDGroup[] {
       });
     }
   }
+  // After grouping, detect dual-band SSIDs
+  for (const group of map.values()) {
+    const has24 = group.bssids.some(b => b.band === "2.4 GHz");
+    const has5  = group.bssids.some(b => b.band === "5 GHz");
+    if (has24 && has5) group.band = "Dual";
+  }
   return Array.from(map.values()).sort((a, b) => b.bestSignal - a.bestSignal);
 }
 
@@ -94,13 +106,14 @@ function SignalBar({ signal }: { signal: number }) {
   );
 }
 
-function Badge({ label, variant = "default" }: { label: string; variant?: "default" | "green" | "amber" | "blue" | "red" }) {
+function Badge({ label, variant = "default" }: { label: string; variant?: "default" | "green" | "amber" | "blue" | "red" | "purple" }) {
   const colors: Record<string, string> = {
     default: "bg-gray-700 text-gray-300",
     green:   "bg-green-900/60 text-green-400 border border-green-700/40",
     amber:   "bg-amber-900/60 text-amber-400 border border-amber-700/40",
     blue:    "bg-blue-900/60 text-blue-400 border border-blue-700/40",
     red:     "bg-red-900/60 text-red-400 border border-red-700/40",
+    purple:  "bg-purple-900/60 text-purple-400 border border-purple-700/40",
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold tracking-wide ${colors[variant]}`}>
@@ -109,7 +122,7 @@ function Badge({ label, variant = "default" }: { label: string; variant?: "defau
   );
 }
 
-function securityVariant(sec: string): "default" | "green" | "amber" | "blue" | "red" {
+function securityVariant(sec: string): "default" | "green" | "amber" | "blue" | "red" | "purple" {
   const s = sec.toLowerCase();
   if (s.includes("wpa3")) return "green";
   if (s.includes("wpa2")) return "blue";
@@ -118,7 +131,8 @@ function securityVariant(sec: string): "default" | "green" | "amber" | "blue" | 
   return "default";
 }
 
-function bandVariant(band: string): "default" | "green" | "amber" | "blue" | "red" {
+function bandVariant(band: string): "default" | "green" | "amber" | "blue" | "red" | "purple" {
+  if (band === "Dual") return "purple";
   if (band.includes("5")) return "blue";
   if (band.includes("2.4")) return "amber";
   return "default";
