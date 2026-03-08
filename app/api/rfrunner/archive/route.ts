@@ -5,14 +5,16 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { device_id, api_key } = body;
+    const { device_id } = body;
 
-    // Validate device
+    if (!device_id) return NextResponse.json({ error: "device_id required" }, { status: 400 });
+
+    // Get tenant_id for this device
     const devices = await sql`
-      SELECT d.device_id, d.tenant_id FROM devices d
-      WHERE d.device_id = ${device_id} AND d.api_key = ${api_key} AND d.claimed = true
+      SELECT tenant_id FROM devices
+      WHERE device_id = ${device_id} AND claimed = true
     ` as any[];
-    if (!devices.length) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    if (!devices.length) return NextResponse.json({ error: "device not found" }, { status: 404 });
     const tenant_id = devices[0].tenant_id;
 
     // Aggregate last hour of rf_scans into rf_scans_hourly
@@ -35,13 +37,13 @@ export async function POST(req: NextRequest) {
         SELECT
           device_id,
           ts_utc,
-          COUNT(*)                                                        AS ap_count,
-          COUNT(DISTINCT ssid)                                            AS ssid_count,
-          MAX(signal_dbm)                                                 AS best_signal,
-          AVG(signal_dbm)::int                                            AS avg_signal,
-          SUM(CASE WHEN frequency_mhz < 3000 OR channel <= 14 THEN 1 ELSE 0 END) AS band_24,
-          SUM(CASE WHEN frequency_mhz >= 3000 OR channel > 14  THEN 1 ELSE 0 END) AS band_5,
-          SUM(CASE WHEN LOWER(security) = 'open'               THEN 1 ELSE 0 END) AS open_ct
+          COUNT(*)                                                                  AS ap_count,
+          COUNT(DISTINCT ssid)                                                      AS ssid_count,
+          MAX(signal_dbm)                                                           AS best_signal,
+          AVG(signal_dbm)::int                                                      AS avg_signal,
+          SUM(CASE WHEN frequency_mhz < 3000 OR channel <= 14 THEN 1 ELSE 0 END)  AS band_24,
+          SUM(CASE WHEN frequency_mhz >= 3000 OR channel > 14 THEN 1 ELSE 0 END)  AS band_5,
+          SUM(CASE WHEN LOWER(security) = 'open'              THEN 1 ELSE 0 END)  AS open_ct
         FROM rf_scans
         WHERE device_id = ${device_id}
           AND ts_utc >= date_trunc('hour', now()) - interval '1 hour'
