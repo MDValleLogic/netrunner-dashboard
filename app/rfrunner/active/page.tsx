@@ -1,18 +1,17 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Shield, Wifi, Clock, Server, AlertTriangle, CheckCircle } from "lucide-react";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
+import { Shield, Wifi, Clock, Server, AlertTriangle } from "lucide-react";
 
 interface OpenPort {
   host: string;
   port: number;
   service: string;
+  hostname?: string;
 }
 
 interface WifiTest {
-  id: string;
+  id: string | number;
   device_id: string;
   ts_utc: string;
   ssid: string;
@@ -38,64 +37,48 @@ interface WifiTest {
   findings: string[];
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function fmtTime(iso: string) {
   try { return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
   catch { return iso; }
 }
-
 function fmtMs(ms: number | null | undefined) {
   if (ms == null) return "—";
   return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`;
 }
-
 function signalColor(dbm: number | null) {
   if (dbm == null) return "#6b7280";
   if (dbm >= -60) return "#22c55e";
   if (dbm >= -75) return "#f59e0b";
   return "#ef4444";
 }
-
 function riskColor(risk: string | null) {
-  if (risk === "high")   return { text: "#ef4444", bg: "rgba(239,68,68,0.1)",   border: "rgba(239,68,68,0.3)"   };
-  if (risk === "medium") return { text: "#f59e0b", bg: "rgba(245,158,11,0.1)",  border: "rgba(245,158,11,0.3)"  };
-  return                        { text: "#22c55e", bg: "rgba(34,197,94,0.1)",   border: "rgba(34,197,94,0.3)"   };
+  const r = (risk || "").toLowerCase();
+  if (r === "high")   return { text: "#ef4444", bg: "rgba(239,68,68,0.1)",  border: "rgba(239,68,68,0.3)"  };
+  if (r === "medium") return { text: "#f59e0b", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.3)" };
+  return                     { text: "#22c55e", bg: "rgba(34,197,94,0.1)",  border: "rgba(34,197,94,0.3)"  };
 }
 
 function PhaseIndicator({ success, label }: { success: boolean | null; label: string }) {
   const color = success === null ? "#6b7280" : success ? "#22c55e" : "#ef4444";
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <div style={{
-        width: 8, height: 8, borderRadius: "50%",
-        background: color,
-        boxShadow: success ? `0 0 6px ${color}` : "none",
-        flexShrink: 0,
-      }} />
-      <span style={{ fontSize: 11, color, fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-        {label}
-      </span>
+    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      <div style={{ width: 7, height: 7, borderRadius: "50%", background: color, boxShadow: success ? `0 0 5px ${color}` : "none", flexShrink: 0 }} />
+      <span style={{ fontSize: 10, color, fontFamily: "monospace", fontWeight: 600 }}>{label}</span>
     </div>
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
-
 export default function ActiveModePage() {
-  const [tests, setTests]       = useState<WifiTest[]>([]);
-  const [selected, setSelected] = useState<WifiTest | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [deviceId, setDeviceId] = useState("");
+  const [tests, setTests]           = useState<WifiTest[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading]       = useState(true);
 
   useEffect(() => {
-    // Get device from devices list
     fetch("/api/devices/list")
       .then(r => r.json())
       .then(j => {
         if (j?.ok && j.devices?.length > 0) {
           const id = j.devices[0].device_id;
-          setDeviceId(id);
           return fetch(`/api/rfrunner/wifi-test?device_id=${encodeURIComponent(id)}&limit=20`);
         }
       })
@@ -103,13 +86,14 @@ export default function ActiveModePage() {
       .then(j => {
         if (j?.ok && j.tests?.length > 0) {
           setTests(j.tests);
-          setSelected(j.tests[0]);
+          setSelectedId(String(j.tests[0].id));
         }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
+  const selected = tests.find(t => String(t.id) === selectedId) ?? null;
   const risk = riskColor(selected?.risk_score ?? null);
 
   return (
@@ -123,9 +107,7 @@ export default function ActiveModePage() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-gray-100 leading-tight">Active Mode</h1>
-            <p className="text-xs text-gray-500 font-mono">
-              WiFi association · DHCP · security scan
-            </p>
+            <p className="text-xs text-gray-500 font-mono">WiFi association · DHCP · security scan</p>
           </div>
         </div>
         {tests.length > 0 && (
@@ -136,24 +118,18 @@ export default function ActiveModePage() {
       </div>
 
       {loading && (
-        <div className="max-w-6xl">
-          <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-8 text-center">
-            <div style={{ color: "#6b7280", fontSize: 13 }}>Loading…</div>
-          </div>
+        <div className="max-w-6xl rounded-lg border border-gray-700/60 bg-gray-900/60 p-8 text-center">
+          <div style={{ color: "#6b7280", fontSize: 13 }}>Loading…</div>
         </div>
       )}
 
       {!loading && tests.length === 0 && (
-        <div className="max-w-6xl">
-          <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-12 text-center">
-            <Shield size={32} className="text-gray-700 mx-auto mb-4" />
-            <div style={{ fontWeight: 600, color: "#9ca3af", marginBottom: 6 }}>No tests recorded yet</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>
-              Run wifitest.py on the Pi to perform an Active Mode scan
-            </div>
-            <div style={{ marginTop: 12, fontFamily: "monospace", fontSize: 11, color: "#4b5563", background: "#111827", padding: "8px 16px", borderRadius: 6, display: "inline-block" }}>
-              sudo python3 /opt/vallelogic/rfrunner/wifitest.py &lt;SSID&gt; &lt;PSK&gt;
-            </div>
+        <div className="max-w-6xl rounded-lg border border-gray-700/60 bg-gray-900/60 p-12 text-center">
+          <Shield size={32} className="text-gray-700 mx-auto mb-4" />
+          <div style={{ fontWeight: 600, color: "#9ca3af", marginBottom: 6 }}>No tests recorded yet</div>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>Run wifitest.py on the Pi to perform an Active Mode scan</div>
+          <div style={{ marginTop: 12, fontFamily: "monospace", fontSize: 11, color: "#4b5563", background: "#111827", padding: "8px 16px", borderRadius: 6, display: "inline-block" }}>
+            sudo python3 /opt/vallelogic/rfrunner/wifitest.py &lt;SSID&gt; &lt;PSK&gt;
           </div>
         </div>
       )}
@@ -161,26 +137,24 @@ export default function ActiveModePage() {
       {!loading && tests.length > 0 && (
         <div className="max-w-6xl" style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 16 }}>
 
-          {/* ── Left: Test history list ── */}
+          {/* Left: Test history list */}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
               Test History
             </div>
             {tests.map(t => {
               const rc = riskColor(t.risk_score);
-              const isSelected = selected?.id === t.id;
+              const isSelected = String(t.id) === selectedId;
               return (
                 <button
-                  key={t.id}
-                  onClick={() => setSelected(t)}
+                  key={String(t.id)}
+                  onClick={() => setSelectedId(String(t.id))}
                   style={{
                     textAlign: "left",
                     background: isSelected ? "rgba(59,130,246,0.1)" : "rgba(17,24,39,0.6)",
                     border: `1px solid ${isSelected ? "rgba(59,130,246,0.4)" : "rgba(75,85,99,0.4)"}`,
-                    borderRadius: 8,
-                    padding: "10px 12px",
-                    cursor: "pointer",
-                    transition: "all 0.15s",
+                    borderRadius: 8, padding: "10px 12px", cursor: "pointer", transition: "all 0.15s",
+                    width: "100%",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
@@ -188,28 +162,26 @@ export default function ActiveModePage() {
                       {t.ssid || "unknown"}
                     </span>
                     <span style={{
-                      fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
-                      padding: "2px 6px", borderRadius: 4,
-                      background: rc.bg, color: rc.text, border: `1px solid ${rc.border}`,
-                      textTransform: "uppercase",
+                      fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", padding: "2px 6px", borderRadius: 4,
+                      background: rc.bg, color: rc.text, border: `1px solid ${rc.border}`, textTransform: "uppercase",
                     }}>
                       {t.risk_score || "—"}
                     </span>
                   </div>
-                  <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace" }}>
+                  <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginBottom: 6 }}>
                     {fmtTime(t.ts_utc)}
                   </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                  <div style={{ display: "flex", gap: 8 }}>
                     <PhaseIndicator success={t.assoc_success} label="ASSOC" />
-                    <PhaseIndicator success={t.dhcp_success} label="DHCP" />
-                    <PhaseIndicator success={t.ping_success} label="PING" />
+                    <PhaseIndicator success={t.dhcp_success}  label="DHCP"  />
+                    <PhaseIndicator success={t.ping_success}  label="PING"  />
                   </div>
                 </button>
               );
             })}
           </div>
 
-          {/* ── Right: Selected test detail ── */}
+          {/* Right: Selected test detail */}
           {selected && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
@@ -238,9 +210,8 @@ export default function ActiveModePage() {
                 </div>
               </div>
 
-              {/* Phase results row */}
+              {/* Phase cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-
                 {/* Association */}
                 <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
@@ -251,9 +222,7 @@ export default function ActiveModePage() {
                     {selected.assoc_success ? "PASS" : "FAIL"}
                   </div>
                   <div style={{ fontSize: 11, color: "#9ca3af", fontFamily: "monospace" }}>{fmtMs(selected.assoc_time_ms)}</div>
-                  {selected.bssid && (
-                    <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 4 }}>{selected.bssid}</div>
-                  )}
+                  {selected.bssid && <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 4 }}>{selected.bssid}</div>}
                 </div>
 
                 {/* DHCP */}
@@ -266,9 +235,7 @@ export default function ActiveModePage() {
                     {selected.dhcp_success ? "PASS" : "FAIL"}
                   </div>
                   <div style={{ fontSize: 11, color: "#9ca3af", fontFamily: "monospace" }}>{selected.ip_assigned || "—"}</div>
-                  <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 2 }}>
-                    gw {selected.gateway || "—"}
-                  </div>
+                  <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 2 }}>gw {selected.gateway || "—"}</div>
                 </div>
 
                 {/* Ping */}
@@ -283,9 +250,7 @@ export default function ActiveModePage() {
                   <div style={{ fontSize: 11, color: "#9ca3af", fontFamily: "monospace" }}>
                     {selected.ping_loss_pct != null ? `${selected.ping_loss_pct}% loss` : "—"}
                   </div>
-                  <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 2 }}>
-                    {selected.gateway || "—"}
-                  </div>
+                  <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 2 }}>{selected.gateway || "—"}</div>
                 </div>
 
                 {/* RF */}
@@ -307,13 +272,11 @@ export default function ActiveModePage() {
               </div>
 
               {/* Security findings */}
-              {selected.findings && selected.findings.length > 0 && (
+              {selected.findings?.length > 0 && (
                 <div style={{ borderRadius: 10, background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.25)", padding: "14px 16px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                     <AlertTriangle size={14} style={{ color: "#ef4444" }} />
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Security Findings
-                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.08em" }}>Security Findings</span>
                   </div>
                   {selected.findings.map((f, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 0", borderTop: i > 0 ? "1px solid rgba(239,68,68,0.15)" : "none" }}>
@@ -324,43 +287,39 @@ export default function ActiveModePage() {
                 </div>
               )}
 
-              {/* Open ports table */}
-              {selected.open_ports && selected.open_ports.length > 0 && (
+              {/* Open ports */}
+              {selected.open_ports?.length > 0 && (
                 <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb", marginBottom: 12 }}>
                     Open Ports — {selected.open_ports.length} found
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: "0 16px", fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(75,85,99,0.4)" }}>
-                    <span>Host</span>
-                    <span>Hostname</span>
-                    <span>Port</span>
-                    <span>Service</span>
-                  </div>
-                  {selected.open_ports.map((p, i) => {
-                    const isRisky = [23, 445, 3389].includes(p.port);
-                    return (
-                      <div key={i} style={{
-                        display: "grid", gridTemplateColumns: "1fr 1fr auto auto",
-                        gap: "0 16px", alignItems: "center",
-                        padding: "6px 0",
-                        borderTop: i > 0 ? "1px solid rgba(75,85,99,0.2)" : "none",
-                      }}>
-                        <span style={{ fontSize: 12, fontFamily: "monospace", color: "#d1d5db" }}>{p.host}</span>
-                        <span style={{ fontSize: 11, fontFamily: "monospace", color: "#9ca3af" }}>{(p as any).hostname || "—"}</span>
-                        <span style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: isRisky ? "#ef4444" : "#60a5fa" }}>
-                          {p.port}
-                        </span>
-                        <span style={{ fontSize: 11, fontFamily: "monospace", color: isRisky ? "#fca5a5" : "#9ca3af" }}>
-                          {p.service}{isRisky ? " ⚠" : ""}
-                        </span>
-                      </div>
-                    );
-                  })}
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #1f2937" }}>
+                        {["Host", "Hostname", "Port", "Service"].map(h => (
+                          <th key={h} style={{ padding: "4px 8px", textAlign: "left", fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selected.open_ports.map((p, i) => {
+                        const isRisky = [23, 445, 3389].includes(p.port);
+                        return (
+                          <tr key={i} style={{ borderTop: "1px solid rgba(75,85,99,0.2)" }}>
+                            <td style={{ padding: "6px 8px", fontSize: 12, fontFamily: "monospace", color: "#d1d5db" }}>{p.host}</td>
+                            <td style={{ padding: "6px 8px", fontSize: 11, fontFamily: "monospace", color: "#9ca3af" }}>{p.hostname || "—"}</td>
+                            <td style={{ padding: "6px 8px", fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: isRisky ? "#ef4444" : "#60a5fa" }}>{p.port}</td>
+                            <td style={{ padding: "6px 8px", fontSize: 11, fontFamily: "monospace", color: isRisky ? "#fca5a5" : "#9ca3af" }}>{p.service}{isRisky ? " ⚠" : ""}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
 
               {/* DNS servers */}
-              {selected.dns_servers && selected.dns_servers.length > 0 && (
+              {selected.dns_servers?.length > 0 && (
                 <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb", marginBottom: 8 }}>DNS Servers</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
