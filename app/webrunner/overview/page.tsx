@@ -2,16 +2,17 @@
 
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, Legend,
+  LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
+import { Globe } from "lucide-react";
 
 type Point = { ts_utc: string; dns_ms: number; http_ms: number; http_err: string; };
 type TimeseriesResp = {
   ok: boolean; device_id: string; since_minutes: number;
   urls: string[]; points: number; series: Record<string, Point[]>; error?: string;
 };
-type DeviceRow = { device_id: string; updated_at?: string; };
+type DeviceRow = { device_id: string; nr_serial?: string; updated_at?: string; };
 
 const CHART_COLORS = ["#3b82f6", "#10b981", "#f97316", "#a78bfa", "#ef4444"];
 const TIME_RANGES = [
@@ -55,45 +56,19 @@ function computeStats(series: Record<string, Point[]>) {
     avgHttp:   totalPoints ? Math.round(sumHttp / totalPoints) : null,
     errCount,
     totalPoints,
-    // FIX: was returning null when totalPoints=0, rendering as "null%"
     errorRate: totalPoints ? ((errCount / totalPoints) * 100).toFixed(1) : "0.0",
   };
-}
-
-function StatTile({ label, value, sub, accent }: {
-  label: string; value: React.ReactNode; sub?: React.ReactNode;
-  accent?: "default" | "green" | "red" | "accent";
-}) {
-  const cls = { default: "", green: "vl-stat-green", red: "vl-stat-red", accent: "vl-stat-accent" }[accent ?? "default"];
-  return (
-    <div className="vl-stat">
-      <div className="vl-stat-label">{label}</div>
-      <div className={`vl-stat-value ${cls}`}>{value}</div>
-      {sub && <div className="vl-stat-sub">{sub}</div>}
-    </div>
-  );
-}
-
-function UrlTag({ url, colorIdx, onDelete }: { url: string; colorIdx: number; onDelete: () => void }) {
-  const short = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  return (
-    <div className="vl-url-tag">
-      <div className="vl-url-dot" style={{ background: CHART_COLORS[colorIdx % CHART_COLORS.length] }} />
-      <span className="vl-url-label" title={url}>{short}</span>
-      <button className="vl-btn vl-btn-danger vl-btn-sm" onClick={onDelete}>✕</button>
-    </div>
-  );
 }
 
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
-      background: "var(--bg-overlay)", border: "1px solid var(--border-bright)",
-      borderRadius: "var(--r-md)", padding: "10px 14px",
-      fontSize: 12, fontFamily: "var(--font-mono)",
+      background: "#111827", border: "1px solid #374151",
+      borderRadius: 6, padding: "10px 14px",
+      fontSize: 12, fontFamily: "monospace",
     }}>
-      <div style={{ color: "var(--text-dim)", marginBottom: 6, fontSize: 10 }}>{fmtTime(String(label))}</div>
+      <div style={{ color: "#6b7280", marginBottom: 6, fontSize: 10 }}>{fmtTime(String(label))}</div>
       {payload.map((entry: any) => (
         <div key={entry.dataKey} style={{ color: entry.color, marginBottom: 2 }}>
           {entry.dataKey.replace(/^https?:\/\//, "").slice(0, 28)}: <strong>{fmtMs(entry.value)}</strong>
@@ -103,7 +78,7 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
-export default function DashboardPage() {
+export default function WebRunnerOverview() {
   const [deviceId, setDeviceId]       = useState("");
   const [devices, setDevices]         = useState<DeviceRow[]>([]);
   const [sinceMinutes, setSince]      = useState(60);
@@ -118,39 +93,26 @@ export default function DashboardPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    fetch("/api/devices")
-      .then((r) => r.json())
-      .then((j) => {
+    fetch("/api/devices/list")
+      .then(r => r.json())
+      .then(j => {
         if (j?.ok && Array.isArray(j.devices) && j.devices.length > 0) {
           setDevices(j.devices);
           setDeviceId(j.devices[0].device_id);
         }
-      })
-      .catch(() => {});
+      }).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!deviceId) return;
-    setUrlsLoading(true);
-    setUrls([]);
-    setData(null);
-    setErr("");
-
+    setUrlsLoading(true); setUrls([]); setData(null); setErr("");
     fetch(`/api/webrunner/config?device_id=${encodeURIComponent(deviceId)}`)
-      .then((r) => r.json())
-      .then((j) => {
+      .then(r => r.json())
+      .then(j => {
         const configUrls: string[] = j?.config?.urls ?? [];
-        // Filter out the SAFE_DEFAULT google URL so we don't display it
-        const realUrls = configUrls.filter(
-          (u) => !u.includes("google.com/generate_204")
-        );
-        if (realUrls.length > 0) {
-          setUrls(realUrls.slice(0, 5).map((u: string) => u.replace(/\/$/, "")));
-        }
-        // If we only got SAFE_DEFAULT or nothing, leave urls empty — show "no URLs configured"
-      })
-      .catch(() => {})
-      .finally(() => setUrlsLoading(false));
+        const realUrls = configUrls.filter(u => !u.includes("google.com/generate_204"));
+        if (realUrls.length > 0) setUrls(realUrls.slice(0, 5).map((u: string) => u.replace(/\/$/, "")));
+      }).catch(() => {}).finally(() => setUrlsLoading(false));
   }, [deviceId]);
 
   const load = useCallback(async () => {
@@ -162,19 +124,15 @@ export default function DashboardPage() {
       qp.set("since_minutes", String(sinceMinutes));
       for (const u of urls) qp.append("urls", u);
       const res  = await fetch(`/api/measurements/timeseries?${qp}`);
-      const json = (await res.json()) as TimeseriesResp;
+      const json = await res.json() as TimeseriesResp;
       if (!json.ok) setErr(json.error || "Request failed");
       else { setData(json); setLastFetched(new Date()); }
     } catch (e: any) {
       setErr(e?.message ?? String(e));
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [deviceId, urls, sinceMinutes]);
 
-  useEffect(() => {
-    if (urls.length > 0 && deviceId) load();
-  }, [urls, deviceId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (urls.length > 0 && deviceId) load(); }, [urls, deviceId]); // eslint-disable-line
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -185,175 +143,221 @@ export default function DashboardPage() {
   function addUrl() {
     const u = newUrl.trim().replace(/\/$/, "");
     if (!u || urls.includes(u) || urls.length >= 5) return;
-    setUrls((prev) => [...prev, u]);
-    setNewUrl("");
+    setUrls(prev => [...prev, u]); setNewUrl("");
   }
 
   const dnsData  = useMemo(() => data?.series ? mergeSeries(data.series, "dns_ms")  : [], [data]);
   const httpData = useMemo(() => data?.series ? mergeSeries(data.series, "http_ms") : [], [data]);
   const stats    = useMemo(() => data?.series ? computeStats(data.series) : null, [data]);
 
+  const statCards = [
+    { label: "Avg DNS",     value: stats ? fmtMs(stats.avgDns)  : "—", alert: !!(stats && stats.avgDns  != null && stats.avgDns  > 200) },
+    { label: "Avg HTTP",    value: stats ? fmtMs(stats.avgHttp) : "—", alert: !!(stats && stats.avgHttp != null && stats.avgHttp > 500) },
+    { label: "Error Rate",  value: stats ? `${stats.errorRate}%` : "—", alert: !!(stats && stats.errCount > 0) },
+    { label: "Data Points", value: stats ? String(stats.totalPoints) : "—", alert: false },
+  ];
+
   return (
-    <>
-      <div className="vl-topbar">
-        <div>
-          <div className="vl-topbar-title">Overview</div>
-          <div className="vl-topbar-sub">DNS &amp; HTTP latency · multi-URL</div>
+    <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6 max-w-5xl">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <Globe size={20} className="text-blue-400" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-gray-100 leading-tight">WebRunner Overview</h1>
+            <p className="text-xs text-gray-500 font-mono">DNS &amp; HTTP latency · multi-URL</p>
+          </div>
         </div>
-        <div className="vl-topbar-spacer" />
-        {lastFetched && (
-          <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-            Updated {lastFetched.toLocaleTimeString()}
-          </span>
-        )}
-        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}>
-          <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)}
-            style={{ accentColor: "var(--accent)" }} />
-          Auto (30s)
-        </label>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {lastFetched && (
+            <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>
+              Updated {lastFetched.toLocaleTimeString()}
+            </span>
+          )}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}>
+            <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)}
+              style={{ accentColor: "#3b82f6" }} />
+            Auto (30s)
+          </label>
+        </div>
       </div>
 
-      <div className="vl-main" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        <div className="vl-grid-4">
-          <StatTile label="Avg DNS"    value={stats ? fmtMs(stats.avgDns)  : "—"} sub="across all URLs"
-            accent={stats && stats.avgDns  != null && stats.avgDns  > 200 ? "red" : "green"} />
-          <StatTile label="Avg HTTP"   value={stats ? fmtMs(stats.avgHttp) : "—"} sub="response time"
-            accent={stats && stats.avgHttp != null && stats.avgHttp > 500 ? "red" : "default"} />
-          <StatTile
-            label="Error Rate"
-            value={stats ? `${stats.errorRate}%` : "—"}
-            sub={stats ? `${stats.errCount} failure${stats.errCount !== 1 ? "s" : ""}` : ""}
-            accent={stats && stats.errCount > 0 ? "red" : "green"}
-          />
-          <StatTile label="Data Points" value={stats ? String(stats.totalPoints) : "—"}
-            sub={`in last ${sinceMinutes < 60 ? sinceMinutes + "m" : sinceMinutes / 60 + "h"}`} accent="accent" />
+      <div className="max-w-5xl space-y-5">
+
+        {/* Stat cards */}
+        <div className="grid grid-cols-4 gap-3">
+          {statCards.map(({ label, value, alert }) => (
+            <div key={label} className={`rounded-lg border px-4 py-4 bg-gray-900/60 ${alert ? "border-red-700/60" : "border-gray-700/60"}`}>
+              <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-2">{label}</div>
+              <div className={`text-2xl font-bold font-mono ${alert ? "text-red-400" : "text-white"}`}>{value}</div>
+            </div>
+          ))}
         </div>
 
-        <div className="vl-card">
-          <div className="vl-card-header">
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Query Settings</span>
-            {err && <span style={{ fontSize: 12, color: "var(--red)" }}>⚠ {err}</span>}
+        {/* Query settings */}
+        <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>Query Settings</span>
+            {err && <span style={{ fontSize: 12, color: "#ef4444" }}>⚠ {err}</span>}
           </div>
-          <div className="vl-card-body">
-            <div className="vl-grid-2" style={{ marginBottom: 16 }}>
-              <div>
-                <label className="vl-label">Device</label>
-                <select className="vl-select" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-                  {devices.length === 0
-                    ? <option value="">No devices registered</option>
-                    : devices.map((d) => <option key={d.device_id} value={d.device_id}>{d.device_id}</option>)
-                  }
-                </select>
-              </div>
-              <div>
-                <label className="vl-label">Time Window</label>
-                <select className="vl-select" value={sinceMinutes} onChange={(e) => setSince(Number(e.target.value))}>
-                  {TIME_RANGES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-                </select>
-              </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <div style={{ fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Device</div>
+              <select value={deviceId} onChange={e => setDeviceId(e.target.value)} style={{
+                width: "100%", background: "#111827", border: "1px solid #374151", borderRadius: 6,
+                color: "#e5e7eb", padding: "7px 10px", fontSize: 12, fontFamily: "monospace",
+              }}>
+                {devices.length === 0
+                  ? <option value="">No devices registered</option>
+                  : devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nr_serial || d.device_id}</option>)
+                }
+              </select>
             </div>
-
-            <label className="vl-label">
-              URLs to Monitor <span style={{ color: "var(--text-dim)" }}>({urls.length}/5)</span>
-              {urlsLoading && <span style={{ color: "var(--accent)", marginLeft: 8, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>loading…</span>}
-            </label>
-
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              <input className="vl-input" type="text" placeholder="https://example.com"
-                value={newUrl} onChange={(e) => setNewUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addUrl()} />
-              <button className="vl-btn vl-btn-ghost" onClick={addUrl} disabled={urls.length >= 5}>+ Add</button>
+            <div>
+              <div style={{ fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Time Window</div>
+              <select value={sinceMinutes} onChange={e => setSince(Number(e.target.value))} style={{
+                width: "100%", background: "#111827", border: "1px solid #374151", borderRadius: 6,
+                color: "#e5e7eb", padding: "7px 10px", fontSize: 12, fontFamily: "monospace",
+              }}>
+                {TIME_RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
             </div>
+          </div>
 
-            {urls.length === 0 && !urlsLoading && (
-              <div style={{ fontSize: 12, color: "var(--text-dim)", padding: "8px 0" }}>
-                No URLs configured. Add one above or set them in Config.
-              </div>
+          <div style={{ fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+            URLs to Monitor ({urls.length}/5)
+            {urlsLoading && <span style={{ color: "#3b82f6", marginLeft: 8, textTransform: "none" }}>loading…</span>}
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input
+              type="text" placeholder="https://example.com"
+              value={newUrl} onChange={e => setNewUrl(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && addUrl()}
+              style={{
+                flex: 1, background: "#111827", border: "1px solid #374151", borderRadius: 6,
+                color: "#e5e7eb", padding: "7px 10px", fontSize: 12, fontFamily: "monospace",
+              }}
+            />
+            <button onClick={addUrl} disabled={urls.length >= 5} style={{
+              background: "transparent", border: "1px solid #374151", borderRadius: 6,
+              color: "#9ca3af", padding: "7px 14px", fontSize: 12, cursor: "pointer",
+              fontFamily: "monospace",
+            }}>+ Add</button>
+          </div>
+
+          {urls.length === 0 && !urlsLoading && (
+            <div style={{ fontSize: 12, color: "#6b7280", padding: "8px 0" }}>
+              No URLs configured. Add one above or set them in Config.
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+            {urls.map((u, i) => {
+              const short = u.replace(/^https?:\/\//, "").replace(/\/$/, "");
+              return (
+                <div key={u} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: "#111827", border: "1px solid #1f2937", borderRadius: 6,
+                  padding: "6px 10px",
+                }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 12, fontFamily: "monospace", color: "#d1d5db", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={u}>{short}</span>
+                  <button onClick={() => setUrls(prev => prev.filter(x => x !== u))} style={{
+                    background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 12, padding: "0 4px",
+                  }}>✕</button>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={load} disabled={loading || urls.length === 0 || !deviceId} style={{
+              background: "#1d4ed8", border: "none", borderRadius: 6,
+              color: "#fff", padding: "8px 18px", fontSize: 12, fontWeight: 600,
+              cursor: loading || urls.length === 0 ? "not-allowed" : "pointer",
+              opacity: loading || urls.length === 0 ? 0.5 : 1, fontFamily: "monospace",
+            }}>
+              {loading ? "Loading…" : "▶  Run Query"}
+            </button>
+            {data && (
+              <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>
+                {data.points} pts · {urls.length} URLs
+              </span>
             )}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {urls.map((u, i) => (
-                <UrlTag key={u} url={u} colorIdx={i} onDelete={() => setUrls((prev) => prev.filter((x) => x !== u))} />
-              ))}
-            </div>
-
-            <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
-              <button className="vl-btn vl-btn-primary" onClick={load}
-                disabled={loading || urls.length === 0 || !deviceId}>
-                {loading ? "Loading…" : "▶  Run Query"}
-              </button>
-              {data && (
-                <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-                  {data.points} pts · {urls.length} URLs
-                </span>
-              )}
-            </div>
           </div>
         </div>
 
+        {/* Charts */}
         {(dnsData.length > 0 || httpData.length > 0) && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <>
             {[
               { title: "DNS Latency", chartData: dnsData },
               { title: "HTTP Response Time", chartData: httpData },
             ].map(({ title, chartData }) => (
-              <div className="vl-card" key={title}>
-                <div className="vl-card-header">
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{title}</span>
-                  <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>milliseconds</span>
+              <div key={title} className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>{title}</span>
+                  <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>milliseconds</span>
                 </div>
-                <div className="vl-card-body">
-                  <div className="vl-chart-wrap">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
-                        <CartesianGrid strokeDasharray="2 4" stroke="var(--border-dim)" />
-                        <XAxis dataKey="ts_utc" tickFormatter={fmtTime} minTickGap={48}
-                          tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
-                          axisLine={{ stroke: "var(--border-mid)" }} tickLine={false} />
-                        <YAxis tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
-                          axisLine={false} tickLine={false} tickFormatter={(v) => `${v}ms`} width={52} />
-                        <Tooltip content={<ChartTooltip />} />
-                        <Legend formatter={(val) => (
-                          <span style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
-                            {val.replace(/^https?:\/\//, "")}
-                          </span>
-                        )} />
-                        {urls.map((u, idx) => (
-                          <Line key={u} type="monotone" dataKey={u}
-                            stroke={CHART_COLORS[idx % CHART_COLORS.length]}
-                            strokeWidth={2} dot={false} isAnimationActive={false}
-                            activeDot={{ r: 4, fill: CHART_COLORS[idx % CHART_COLORS.length] }} />
-                        ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
+                    <XAxis dataKey="ts_utc" tickFormatter={fmtTime} minTickGap={48}
+                      tick={{ fill: "#6b7280", fontSize: 10, fontFamily: "monospace" }}
+                      axisLine={{ stroke: "#374151" }} tickLine={false} />
+                    <YAxis tick={{ fill: "#6b7280", fontSize: 10, fontFamily: "monospace" }}
+                      axisLine={false} tickLine={false} tickFormatter={v => `${v}ms`} width={52} />
+                    <Tooltip content={<ChartTooltip />} />
+                    {urls.map((u, idx) => (
+                      <Line key={u} type="monotone" dataKey={u}
+                        stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                        strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true}
+                        activeDot={{ r: 4, fill: CHART_COLORS[idx % CHART_COLORS.length] }} />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+                <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap" }}>
+                  {urls.map((u, idx) => (
+                    <div key={u} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <div style={{ width: 12, height: 2, background: CHART_COLORS[idx % CHART_COLORS.length], borderRadius: 1 }} />
+                      <span style={{ fontSize: 10, fontFamily: "monospace", color: "#9ca3af" }}>
+                        {u.replace(/^https?:\/\//, "").slice(0, 30)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
-          </div>
+          </>
         )}
 
+        {/* Empty state */}
         {!data && !loading && !urlsLoading && (
-          <div className="vl-card">
-            <div className="vl-empty">
-              <div style={{ fontSize: 32, marginBottom: 10 }}>◎</div>
-              <div style={{ fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6 }}>No data loaded</div>
-              <div>Select a device and click <strong style={{ color: "var(--accent)" }}>Run Query</strong></div>
+          <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-12 text-center">
+            <Globe size={32} className="text-gray-700 mx-auto mb-4" />
+            <div style={{ fontWeight: 600, color: "#9ca3af", marginBottom: 6 }}>No data loaded</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              Select a device and click <span style={{ color: "#3b82f6" }}>▶ Run Query</span>
             </div>
           </div>
         )}
 
+        {/* Loading shimmer */}
         {(loading || urlsLoading) && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {[280, 280].map((h, i) => (
-              <div key={i} className="vl-card">
-                <div className="vl-card-header"><div className="vl-shimmer" style={{ width: 120, height: 14 }} /></div>
-                <div className="vl-card-body"><div className="vl-shimmer" style={{ height: h }} /></div>
+            {[220, 220].map((h, i) => (
+              <div key={i} className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
+                <div style={{ height: h, background: "#1f2937", borderRadius: 6, opacity: 0.5 }} />
               </div>
             ))}
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
