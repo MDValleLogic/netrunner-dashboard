@@ -27,6 +27,7 @@ interface WifiTest {
   ping_latency_ms: number | null;
   ping_loss_pct: number | null;
   bssid: string | null;
+  bssid_vendor: string | null;
   rssi_dbm: number | null;
   channel: number | null;
   band: string | null;
@@ -222,7 +223,7 @@ export default function ActiveModePage() {
                     {selected.assoc_success ? "PASS" : "FAIL"}
                   </div>
                   <div style={{ fontSize: 11, color: "#9ca3af", fontFamily: "monospace" }}>{fmtMs(selected.assoc_time_ms)}</div>
-                  {selected.bssid && <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 4 }}>{selected.bssid}</div>}
+                  {selected.assoc_failure && <div style={{ fontSize: 10, color: "#ef4444", fontFamily: "monospace", marginTop: 4 }}>{selected.assoc_failure}</div>}
                 </div>
 
                 {/* DHCP */}
@@ -253,7 +254,7 @@ export default function ActiveModePage() {
                   <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 2 }}>{selected.gateway || "—"}</div>
                 </div>
 
-                {/* RF */}
+                {/* RF Details — with vendor */}
                 <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
                     <Wifi size={13} style={{ color: signalColor(selected.rssi_dbm) }} />
@@ -265,9 +266,12 @@ export default function ActiveModePage() {
                   <div style={{ fontSize: 11, color: "#9ca3af", fontFamily: "monospace" }}>
                     {selected.band || "—"} · Ch {selected.channel || "—"}
                   </div>
-                  <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 2 }}>
-                    {selected.frequency_mhz ? `${selected.frequency_mhz} MHz` : "—"}
-                  </div>
+                  {selected.bssid && (
+                    <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 4 }}>{selected.bssid}</div>
+                  )}
+                  {selected.bssid_vendor && (
+                    <div style={{ fontSize: 10, color: "#60a5fa", fontFamily: "monospace", marginTop: 2 }}>{selected.bssid_vendor}</div>
+                  )}
                 </div>
               </div>
 

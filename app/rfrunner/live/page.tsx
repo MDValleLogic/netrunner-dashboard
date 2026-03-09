@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, Wifi, RefreshCw, Radio } from "lucide-react"
 interface RawNetwork {
   ssid: string;
   bssid: string;
+  bssid_vendor: string | null;
   signal_dbm: number;
   channel: number | null;
   band: string | null;
@@ -15,6 +16,7 @@ interface RawNetwork {
 
 interface BSSIDEntry {
   bssid: string;
+  bssid_vendor: string | null;
   signal: number;
   channel: number | null;
   band: string;
@@ -71,19 +73,15 @@ function groupBySSID(networks: RawNetwork[]): SSIDGroup[] {
     if (existing) {
       existing.apCount += 1;
       if (sig > existing.bestSignal) existing.bestSignal = sig;
-      existing.bssids.push({ bssid: n.bssid, signal: sig, channel: n.channel, band });
+      existing.bssids.push({ bssid: n.bssid, bssid_vendor: n.bssid_vendor ?? null, signal: sig, channel: n.channel, band });
     } else {
       map.set(ssid, {
-        ssid,
-        apCount: 1,
-        bestSignal: sig,
-        band,
+        ssid, apCount: 1, bestSignal: sig, band,
         security: n.security || "Open",
-        bssids: [{ bssid: n.bssid, signal: sig, channel: n.channel, band }],
+        bssids: [{ bssid: n.bssid, bssid_vendor: n.bssid_vendor ?? null, signal: sig, channel: n.channel, band }],
       });
     }
   }
-  // After grouping, detect dual-band SSIDs
   for (const group of map.values()) {
     const has24 = group.bssids.some(b => b.band === "2.4 GHz");
     const has5  = group.bssids.some(b => b.band === "5 GHz");
@@ -155,6 +153,7 @@ function SSIDRow({ group }: { group: SSIDGroup }) {
         <div className="border-t border-gray-700/50 bg-gray-950/60 px-4 py-2">
           <div className="flex gap-4 text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-1 px-1">
             <span className="w-36">BSSID</span>
+            <span className="w-40">Vendor</span>
             <span className="w-16">Channel</span>
             <span className="w-20">Band</span>
             <span className="w-24">Signal</span>
@@ -162,6 +161,9 @@ function SSIDRow({ group }: { group: SSIDGroup }) {
           {group.bssids.sort((a, b) => b.signal - a.signal).map((b) => (
             <div key={b.bssid} className="flex gap-4 items-center px-1 py-1.5 rounded hover:bg-gray-800/40 transition-colors">
               <span className="font-mono text-xs text-gray-400 w-36">{b.bssid}</span>
+              <span className="font-mono text-xs w-40 truncate" style={{ color: b.bssid_vendor ? "#60a5fa" : "#4b5563" }} title={b.bssid_vendor || ""}>
+                {b.bssid_vendor || "—"}
+              </span>
               <span className="font-mono text-xs text-gray-400 w-16">{b.channel !== null ? `ch ${b.channel}` : "—"}</span>
               <span className="w-20"><Badge label={b.band} variant={bandVariant(b.band)} /></span>
               <div className="flex items-center gap-2 w-24">
