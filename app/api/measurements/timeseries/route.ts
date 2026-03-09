@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     return bad("since_minutes must be a number between 1 and 10080");
   }
   if (urls.length === 0) return bad("Provide at least one urls parameter (repeat urls=...)");
-  if (urls.length > 5) return bad("Max 5 urls (MVP limit)");
+  if (urls.length > 20) return bad("Max 20 urls");
 
   try {
     // Neon sql() returns an array of rows directly
