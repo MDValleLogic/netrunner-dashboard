@@ -2,16 +2,15 @@ import { sql } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
-// Device-key authenticated endpoint — used by Pi to fetch its own RF config
+// Device-authenticated endpoint — Pi fetches its own RF config by device_id
 export async function GET(req: NextRequest) {
   try {
-    const deviceKey = req.headers.get("x-device-key");
-    if (!deviceKey) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    const device_id = req.nextUrl.searchParams.get("device_id");
+    if (!device_id) return NextResponse.json({ error: "device_id required" }, { status: 400 });
 
-    // Look up device by key
     const devices = await sql`
       SELECT device_id FROM devices
-      WHERE device_key = ${deviceKey} AND claimed = true
+      WHERE device_id = ${device_id} AND claimed = true
       LIMIT 1
     ` as any[];
     if (!devices.length) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
