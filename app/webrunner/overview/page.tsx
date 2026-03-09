@@ -1,33 +1,90 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, Legend,
+  LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 
-type Point = { ts_utc: string; dns_ms: number; http_ms: number; http_err: string; };
-type TimeseriesResp = {
-  ok: boolean; device_id: string; since_minutes: number;
-  urls: string[]; points: number; series: Record<string, Point[]>; error?: string;
-};
-type DeviceRow = { device_id: string; updated_at?: string; };
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-const CHART_COLORS = ["#3b82f6", "#10b981", "#f97316", "#a78bfa", "#ef4444"];
-const TIME_RANGES = [
-  { value: 60,   label: "Last 1 hr"   },
-  { value: 240,  label: "Last 4 hrs"  },
-  { value: 1440, label: "Last 24 hrs" },
-];
+type Point = {
+  ts_utc: string;
+  dns_ms: number;
+  http_ms: number;
+  http_err: string;
+};
+
+type TimeseriesResp = {
+  ok: boolean;
+  device_id: string;
+  since_minutes: number;
+  urls: string[];
+  points: number;
+  series: Record<string, Point[]>;
+  error?: string;
+};
+
+type DeviceRow = {
+  device_id: string;
+  nr_serial?: string;
+  updated_at?: string;
+};
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const CHART_COLORS = ["#3b82f6", "#10b981", "#f97316", "#a78bfa", "#ef4444", "#facc15"];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmtTime(iso: string) {
-  try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
-  catch { return ""; }
+  try {
+    return new Date(iso).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
 }
+
 function fmtMs(val: number | undefined | null): string {
   if (val == null || isNaN(val)) return "—";
   return val < 1000 ? `${Math.round(val)}ms` : `${(val / 1000).toFixed(2)}s`;
 }
+
+function shortUrl(url: string) {
+  return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
+
+// Get the latest point for each URL
+function getLatestPerUrl(series: Record<string, Point[]>): Record<string, Point | null> {
+  const result: Record<string, Point | null> = {};
+  for (const [url, pts] of Object.entries(series)) {
+    result[url] = pts.length > 0 ? pts[pts.length - 1] : null;
+  }
+  return result;
+}
+
+function computeStats(series: Record<string, Point[]>) {
+  let totalPoints = 0, sumDns = 0, sumHttp = 0, errCount = 0;
+  for (const pts of Object.values(series)) {
+    for (const p of pts) {
+      totalPoints++;
+      sumDns += p.dns_ms || 0;
+      sumHttp += p.http_ms || 0;
+      if (p.http_err && p.http_err !== "null" && p.http_err !== "") errCount++;
+    }
+  }
+  return {
+    avgDns: totalPoints ? Math.round(sumDns / totalPoints) : null,
+    avgHttp: totalPoints ? Math.round(sumHttp / totalPoints) : null,
+    errCount,
+    totalPoints,
+    errorRate: totalPoints ? ((errCount / totalPoints) * 100).toFixed(1) : "0.0",
+  };
+}
+
 function mergeSeries(series: Record<string, Point[]>, field: "dns_ms" | "http_ms") {
   const byTs = new Map<string, Record<string, number>>();
   for (const [url, pts] of Object.entries(series)) {
@@ -37,88 +94,115 @@ function mergeSeries(series: Record<string, Point[]>, field: "dns_ms" | "http_ms
     }
   }
   return Array.from(byTs.values()).sort(
-    (a, b) => new Date(a.ts_utc as any).getTime() - new Date(b.ts_utc as any).getTime()
-  );
-}
-function computeStats(series: Record<string, Point[]>) {
-  let totalPoints = 0, sumDns = 0, sumHttp = 0, errCount = 0;
-  for (const pts of Object.values(series)) {
-    for (const p of pts) {
-      totalPoints++;
-      sumDns  += p.dns_ms  || 0;
-      sumHttp += p.http_ms || 0;
-      if (p.http_err && p.http_err !== "null" && p.http_err !== "") errCount++;
-    }
-  }
-  return {
-    avgDns:    totalPoints ? Math.round(sumDns / totalPoints)  : null,
-    avgHttp:   totalPoints ? Math.round(sumHttp / totalPoints) : null,
-    errCount,
-    totalPoints,
-    // FIX: was returning null when totalPoints=0, rendering as "null%"
-    errorRate: totalPoints ? ((errCount / totalPoints) * 100).toFixed(1) : "0.0",
-  };
-}
-
-function StatTile({ label, value, sub, accent }: {
-  label: string; value: React.ReactNode; sub?: React.ReactNode;
-  accent?: "default" | "green" | "red" | "accent";
-}) {
-  const cls = { default: "", green: "vl-stat-green", red: "vl-stat-red", accent: "vl-stat-accent" }[accent ?? "default"];
-  return (
-    <div className="vl-stat">
-      <div className="vl-stat-label">{label}</div>
-      <div className={`vl-stat-value ${cls}`}>{value}</div>
-      {sub && <div className="vl-stat-sub">{sub}</div>}
-    </div>
+    (a, b) =>
+      new Date(a.ts_utc as any).getTime() - new Date(b.ts_utc as any).getTime()
   );
 }
 
-function UrlTag({ url, colorIdx, onDelete }: { url: string; colorIdx: number; onDelete: () => void }) {
-  const short = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  return (
-    <div className="vl-url-tag">
-      <div className="vl-url-dot" style={{ background: CHART_COLORS[colorIdx % CHART_COLORS.length] }} />
-      <span className="vl-url-label" title={url}>{short}</span>
-      <button className="vl-btn vl-btn-danger vl-btn-sm" onClick={onDelete}>✕</button>
-    </div>
-  );
-}
+// ─── Sub-components ──────────────────────────────────────────────────────────
 
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
-      background: "var(--bg-overlay)", border: "1px solid var(--border-bright)",
-      borderRadius: "var(--r-md)", padding: "10px 14px",
-      fontSize: 12, fontFamily: "var(--font-mono)",
+      background: "var(--bg-overlay)",
+      border: "1px solid var(--border-bright)",
+      borderRadius: "var(--r-md)",
+      padding: "10px 14px",
+      fontSize: 12,
+      fontFamily: "var(--font-mono)",
     }}>
-      <div style={{ color: "var(--text-dim)", marginBottom: 6, fontSize: 10 }}>{fmtTime(String(label))}</div>
+      <div style={{ color: "var(--text-dim)", marginBottom: 6, fontSize: 10 }}>
+        {fmtTime(String(label))}
+      </div>
       {payload.map((entry: any) => (
-        <div key={entry.dataKey} style={{ color: entry.color, marginBottom: 2 }}>
-          {entry.dataKey.replace(/^https?:\/\//, "").slice(0, 28)}: <strong>{fmtMs(entry.value)}</strong>
+        <div
+          key={entry.dataKey}
+          style={{ color: entry.color, marginBottom: 2, display: "flex", justifyContent: "space-between", gap: 16 }}
+        >
+          <span style={{ color: "var(--text-dim)" }}>
+            {shortUrl(entry.dataKey).slice(0, 24)}
+          </span>
+          <strong>{fmtMs(entry.value)}</strong>
         </div>
       ))}
     </div>
   );
 }
 
-export default function DashboardPage() {
-  const [deviceId, setDeviceId]       = useState("");
-  const [devices, setDevices]         = useState<DeviceRow[]>([]);
-  const [sinceMinutes, setSince]      = useState(60);
-  const [urls, setUrls]               = useState<string[]>([]);
-  const [urlsLoading, setUrlsLoading] = useState(false);
-  const [newUrl, setNewUrl]           = useState("");
-  const [loading, setLoading]         = useState(false);
-  const [data, setData]               = useState<TimeseriesResp | null>(null);
-  const [err, setErr]                 = useState("");
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+function StatusBadge({ ok, err }: { ok: boolean; err?: string | null }) {
+  return (
+    <span style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 5,
+      padding: "3px 9px",
+      borderRadius: 999,
+      fontSize: 10,
+      fontWeight: 700,
+      letterSpacing: "0.07em",
+      textTransform: "uppercase" as const,
+      background: ok ? "var(--green-dim)" : "var(--red-dim)",
+      color: ok ? "var(--green)" : "var(--red)",
+      border: `1px solid ${ok ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)"}`,
+    }}>
+      <span style={{
+        width: 5, height: 5, borderRadius: "50%",
+        background: ok ? "var(--green)" : "var(--red)",
+        boxShadow: ok ? "0 0 5px var(--green)" : "none",
+        flexShrink: 0,
+      }} />
+      {ok ? "OK" : err?.includes("403") ? "403" : err?.includes("timeout") ? "TIMEOUT" : "FAIL"}
+    </span>
+  );
+}
 
+function LatencyBar({ ms, max }: { ms: number | null; max: number }) {
+  if (ms == null) return <span style={{ color: "var(--text-dim)", fontSize: 11 }}>—</span>;
+  const pct = Math.min((ms / Math.max(max, 1)) * 100, 100);
+  const color = ms < 200 ? "var(--green)" : ms < 800 ? "var(--chart-1)" : "var(--red)";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{
+        flex: 1, height: 4, borderRadius: 2,
+        background: "var(--border-dim)",
+        overflow: "hidden",
+      }}>
+        <div style={{
+          width: `${pct}%`, height: "100%",
+          background: color,
+          borderRadius: 2,
+          transition: "width 0.4s ease",
+        }} />
+      </div>
+      <span style={{
+        fontFamily: "var(--font-mono)",
+        fontSize: 12,
+        color,
+        minWidth: 52,
+        textAlign: "right" as const,
+      }}>
+        {fmtMs(ms)}
+      </span>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+export default function WebRunnerOverviewPage() {
+  const [deviceId, setDeviceId] = useState("");
+  const [devices, setDevices] = useState<DeviceRow[]>([]);
+  const [sinceMinutes, setSince] = useState(60);
+  const [data, setData] = useState<TimeseriesResp | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const [tick, setTick] = useState(0);
+
+  // Load devices
   useEffect(() => {
-    fetch("/api/devices")
+    fetch("/api/devices/list")
       .then((r) => r.json())
       .then((j) => {
         if (j?.ok && Array.isArray(j.devices) && j.devices.length > 0) {
@@ -129,72 +213,78 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
+  // Auto-load data when device or time window changes
   useEffect(() => {
     if (!deviceId) return;
-    setUrlsLoading(true);
-    setUrls([]);
-    setData(null);
+    loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceId, sinceMinutes]);
+
+  // Auto-refresh every 30s + countdown ticker
+  useEffect(() => {
+    const poll = setInterval(() => { loadData(); setTick(0); }, 30_000);
+    const countdown = setInterval(() => setTick((t) => t + 1), 1_000);
+    return () => { clearInterval(poll); clearInterval(countdown); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceId, sinceMinutes]);
+
+  async function loadData() {
+    if (!deviceId) return;
+    setLoading(true);
     setErr("");
-
-    fetch(`/api/webrunner/config?device_id=${encodeURIComponent(deviceId)}`)
-      .then((r) => r.json())
-      .then((j) => {
-        const configUrls: string[] = j?.config?.urls ?? [];
-        // Filter out the SAFE_DEFAULT google URL so we don't display it
-        const realUrls = configUrls.filter(
-          (u) => !u.includes("google.com/generate_204")
-        );
-        if (realUrls.length > 0) {
-          setUrls(realUrls.slice(0, 5).map((u: string) => u.replace(/\/$/, "")));
-        }
-        // If we only got SAFE_DEFAULT or nothing, leave urls empty — show "no URLs configured"
-      })
-      .catch(() => {})
-      .finally(() => setUrlsLoading(false));
-  }, [deviceId]);
-
-  const load = useCallback(async () => {
-    if (!deviceId || urls.length === 0) return;
-    setErr(""); setLoading(true);
     try {
+      // First get configured URLs
+      const cfgRes = await fetch(`/api/webrunner/config?device_id=${encodeURIComponent(deviceId)}`);
+      const cfgJson = await cfgRes.json();
+      const configUrls: string[] = (cfgJson?.config?.urls ?? [])
+        .filter((u: string) => !u.includes("google.com/generate_204"))
+        .slice(0, 6)
+        .map((u: string) => u.replace(/\/$/, ""));
+
+      if (configUrls.length === 0) {
+        setData(null);
+        setLoading(false);
+        return;
+      }
+
       const qp = new URLSearchParams();
       qp.set("device_id", deviceId);
       qp.set("since_minutes", String(sinceMinutes));
-      for (const u of urls) qp.append("urls", u);
-      const res  = await fetch(`/api/measurements/timeseries?${qp}`);
+      for (const u of configUrls) qp.append("urls", u);
+
+      const res = await fetch(`/api/measurements/timeseries?${qp}`);
       const json = (await res.json()) as TimeseriesResp;
       if (!json.ok) setErr(json.error || "Request failed");
-      else { setData(json); setLastFetched(new Date()); }
+      else {
+        setData(json);
+        setLastFetched(new Date());
+      }
     } catch (e: any) {
       setErr(e?.message ?? String(e));
     } finally {
       setLoading(false);
     }
-  }, [deviceId, urls, sinceMinutes]);
-
-  useEffect(() => {
-    if (urls.length > 0 && deviceId) load();
-  }, [urls, deviceId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (autoRefresh) timerRef.current = setInterval(load, 30_000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [autoRefresh, load]);
-
-  function addUrl() {
-    const u = newUrl.trim().replace(/\/$/, "");
-    if (!u || urls.includes(u) || urls.length >= 5) return;
-    setUrls((prev) => [...prev, u]);
-    setNewUrl("");
   }
 
-  const dnsData  = useMemo(() => data?.series ? mergeSeries(data.series, "dns_ms")  : [], [data]);
+  const stats = useMemo(() => data?.series ? computeStats(data.series) : null, [data]);
+  const latest = useMemo(() => data?.series ? getLatestPerUrl(data.series) : {}, [data]);
+  const dnsData = useMemo(() => data?.series ? mergeSeries(data.series, "dns_ms") : [], [data]);
   const httpData = useMemo(() => data?.series ? mergeSeries(data.series, "http_ms") : [], [data]);
-  const stats    = useMemo(() => data?.series ? computeStats(data.series) : null, [data]);
+  const urls = useMemo(() => data?.urls ?? [], [data]);
+
+  const maxHttp = useMemo(() => {
+    let max = 0;
+    for (const p of Object.values(latest)) {
+      if (p?.http_ms && p.http_ms > max) max = p.http_ms;
+    }
+    return max;
+  }, [latest]);
+
+  const nextRefresh = Math.max(0, 30 - (tick % 30));
 
   return (
     <>
+      {/* ── Top bar ── */}
       <div className="vl-topbar">
         <div>
           <div className="vl-topbar-title">Overview</div>
@@ -206,153 +296,267 @@ export default function DashboardPage() {
             Updated {lastFetched.toLocaleTimeString()}
           </span>
         )}
-        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}>
-          <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)}
-            style={{ accentColor: "var(--accent)" }} />
-          Auto (30s)
-        </label>
+        <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+          Auto ({nextRefresh}s)
+        </span>
+        <select
+          className="vl-select"
+          value={sinceMinutes}
+          onChange={(e) => setSince(Number(e.target.value))}
+          style={{ width: "auto" }}
+        >
+          <option value={60}>Last 1 hr</option>
+          <option value={240}>Last 4 hrs</option>
+          <option value={1440}>Last 24 hrs</option>
+        </select>
+        {devices.length > 1 && (
+          <select
+            className="vl-select"
+            value={deviceId}
+            onChange={(e) => setDeviceId(e.target.value)}
+            style={{ width: "auto" }}
+          >
+            {devices.map((d) => (
+              <option key={d.device_id} value={d.device_id}>
+                {d.nr_serial || d.device_id}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
-      <div className="vl-main" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div className="vl-main" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {err && (
+          <div style={{
+            padding: "10px 16px", borderRadius: "var(--r-md)",
+            background: "var(--red-dim)",
+            border: "1px solid rgba(239,68,68,0.3)",
+            color: "var(--red)", fontSize: 13,
+          }}>
+            ⚠ {err}
+          </div>
+        )}
+
+        {/* ── Stat tiles ── */}
         <div className="vl-grid-4">
-          <StatTile label="Avg DNS"    value={stats ? fmtMs(stats.avgDns)  : "—"} sub="across all URLs"
-            accent={stats && stats.avgDns  != null && stats.avgDns  > 200 ? "red" : "green"} />
-          <StatTile label="Avg HTTP"   value={stats ? fmtMs(stats.avgHttp) : "—"} sub="response time"
-            accent={stats && stats.avgHttp != null && stats.avgHttp > 500 ? "red" : "default"} />
-          <StatTile
-            label="Error Rate"
-            value={stats ? `${stats.errorRate}%` : "—"}
-            sub={stats ? `${stats.errCount} failure${stats.errCount !== 1 ? "s" : ""}` : ""}
-            accent={stats && stats.errCount > 0 ? "red" : "green"}
-          />
-          <StatTile label="Data Points" value={stats ? String(stats.totalPoints) : "—"}
-            sub={`in last ${sinceMinutes < 60 ? sinceMinutes + "m" : sinceMinutes / 60 + "h"}`} accent="accent" />
-        </div>
-
-        <div className="vl-card">
-          <div className="vl-card-header">
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Query Settings</span>
-            {err && <span style={{ fontSize: 12, color: "var(--red)" }}>⚠ {err}</span>}
+          <div className="vl-stat">
+            <div className="vl-stat-label">Avg DNS</div>
+            <div className={`vl-stat-value ${stats?.avgDns != null && stats.avgDns > 200 ? "vl-stat-red" : "vl-stat-green"}`}>
+              {stats ? fmtMs(stats.avgDns) : "—"}
+            </div>
+            <div className="vl-stat-sub">across all URLs</div>
           </div>
-          <div className="vl-card-body">
-            <div className="vl-grid-2" style={{ marginBottom: 16 }}>
-              <div>
-                <label className="vl-label">Device</label>
-                <select className="vl-select" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-                  {devices.length === 0
-                    ? <option value="">No devices registered</option>
-                    : devices.map((d) => <option key={d.device_id} value={d.device_id}>{d.device_id}</option>)
-                  }
-                </select>
-              </div>
-              <div>
-                <label className="vl-label">Time Window</label>
-                <select className="vl-select" value={sinceMinutes} onChange={(e) => setSince(Number(e.target.value))}>
-                  {TIME_RANGES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-                </select>
-              </div>
+          <div className="vl-stat">
+            <div className="vl-stat-label">Avg HTTP</div>
+            <div className={`vl-stat-value ${stats?.avgHttp != null && stats.avgHttp > 500 ? "vl-stat-red" : ""}`}>
+              {stats ? fmtMs(stats.avgHttp) : "—"}
             </div>
-
-            <label className="vl-label">
-              URLs to Monitor <span style={{ color: "var(--text-dim)" }}>({urls.length}/5)</span>
-              {urlsLoading && <span style={{ color: "var(--accent)", marginLeft: 8, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>loading…</span>}
-            </label>
-
-            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-              <input className="vl-input" type="text" placeholder="https://example.com"
-                value={newUrl} onChange={(e) => setNewUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addUrl()} />
-              <button className="vl-btn vl-btn-ghost" onClick={addUrl} disabled={urls.length >= 5}>+ Add</button>
+            <div className="vl-stat-sub">response time</div>
+          </div>
+          <div className="vl-stat">
+            <div className="vl-stat-label">Error Rate</div>
+            <div className={`vl-stat-value ${stats?.errCount ? "vl-stat-red" : "vl-stat-green"}`}>
+              {stats ? `${stats.errorRate}%` : "—"}
             </div>
-
-            {urls.length === 0 && !urlsLoading && (
-              <div style={{ fontSize: 12, color: "var(--text-dim)", padding: "8px 0" }}>
-                No URLs configured. Add one above or set them in Config.
-              </div>
-            )}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {urls.map((u, i) => (
-                <UrlTag key={u} url={u} colorIdx={i} onDelete={() => setUrls((prev) => prev.filter((x) => x !== u))} />
-              ))}
+            <div className="vl-stat-sub">
+              {stats ? `${stats.errCount} failure${stats.errCount !== 1 ? "s" : ""}` : ""}
             </div>
-
-            <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
-              <button className="vl-btn vl-btn-primary" onClick={load}
-                disabled={loading || urls.length === 0 || !deviceId}>
-                {loading ? "Loading…" : "▶  Run Query"}
-              </button>
-              {data && (
-                <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-                  {data.points} pts · {urls.length} URLs
-                </span>
-              )}
+          </div>
+          <div className="vl-stat">
+            <div className="vl-stat-label">Data Points</div>
+            <div className="vl-stat-value vl-stat-accent">
+              {stats ? String(stats.totalPoints) : "—"}
+            </div>
+            <div className="vl-stat-sub">
+              in last {sinceMinutes < 60 ? sinceMinutes + "m" : sinceMinutes / 60 + "h"}
             </div>
           </div>
         </div>
 
+        {/* ── Per-URL status grid ── */}
+        {urls.length > 0 && (
+          <div className="vl-card">
+            <div className="vl-card-header">
+              <span style={{ fontSize: 13, fontWeight: 600 }}>URL Status</span>
+              <span style={{ fontSize: 11, color: "var(--text-dim)" }}>
+                {urls.length} URL{urls.length !== 1 ? "s" : ""} monitored · latest result
+              </span>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table className="vl-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 16 }}></th>
+                    <th>URL</th>
+                    <th style={{ textAlign: "right" as const }}>DNS</th>
+                    <th>HTTP Response</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: "right" as const }}>Last Checked</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {urls.map((url, idx) => {
+                    const p = latest[url];
+                    const ok = p ? (!p.http_err || p.http_err === "" || p.http_err === "null") : null;
+                    return (
+                      <tr key={url}>
+                        <td>
+                          <div style={{
+                            width: 8, height: 8, borderRadius: "50%",
+                            background: CHART_COLORS[idx % CHART_COLORS.length],
+                            boxShadow: ok === true
+                              ? `0 0 6px ${CHART_COLORS[idx % CHART_COLORS.length]}`
+                              : "none",
+                          }} />
+                        </td>
+                        <td className="mono" style={{
+                          maxWidth: 260, overflow: "hidden",
+                          textOverflow: "ellipsis", whiteSpace: "nowrap" as const,
+                          color: "var(--text-primary)",
+                        }}>
+                          {shortUrl(url)}
+                        </td>
+                        <td className="mono" style={{ textAlign: "right" as const, color: "var(--text-secondary)" }}>
+                          {p ? fmtMs(p.dns_ms) : "—"}
+                        </td>
+                        <td style={{ minWidth: 180 }}>
+                          {p ? <LatencyBar ms={p.http_ms} max={maxHttp} /> : (
+                            <span style={{ color: "var(--text-dim)", fontSize: 11 }}>No data</span>
+                          )}
+                        </td>
+                        <td>
+                          {ok !== null
+                            ? <StatusBadge ok={ok === true} err={p?.http_err} />
+                            : <span style={{ color: "var(--text-dim)", fontSize: 11 }}>—</span>
+                          }
+                        </td>
+                        <td className="mono" style={{
+                          textAlign: "right" as const,
+                          fontSize: 11, color: "var(--text-dim)",
+                        }}>
+                          {p ? fmtTime(p.ts_utc) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Charts ── */}
         {(dnsData.length > 0 || httpData.length > 0) && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <>
             {[
-              { title: "DNS Latency", chartData: dnsData },
-              { title: "HTTP Response Time", chartData: httpData },
-            ].map(({ title, chartData }) => (
+              { title: "DNS Latency", chartData: dnsData, label: "milliseconds" },
+              { title: "HTTP Response Time", chartData: httpData, label: "milliseconds" },
+            ].map(({ title, chartData, label }) => (
               <div className="vl-card" key={title}>
                 <div className="vl-card-header">
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{title}</span>
-                  <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>milliseconds</span>
+                  <span style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+                    {label}
+                  </span>
                 </div>
                 <div className="vl-card-body">
                   <div className="vl-chart-wrap">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
                         <CartesianGrid strokeDasharray="2 4" stroke="var(--border-dim)" />
-                        <XAxis dataKey="ts_utc" tickFormatter={fmtTime} minTickGap={48}
+                        <XAxis
+                          dataKey="ts_utc"
+                          tickFormatter={fmtTime}
+                          minTickGap={48}
                           tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
-                          axisLine={{ stroke: "var(--border-mid)" }} tickLine={false} />
-                        <YAxis tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
-                          axisLine={false} tickLine={false} tickFormatter={(v) => `${v}ms`} width={52} />
+                          axisLine={{ stroke: "var(--border-mid)" }}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fill: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(v) => `${v}ms`}
+                          width={52}
+                        />
                         <Tooltip content={<ChartTooltip />} />
-                        <Legend formatter={(val) => (
-                          <span style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
-                            {val.replace(/^https?:\/\//, "")}
-                          </span>
-                        )} />
                         {urls.map((u, idx) => (
-                          <Line key={u} type="monotone" dataKey={u}
+                          <Line
+                            key={u}
+                            type="monotone"
+                            dataKey={u}
                             stroke={CHART_COLORS[idx % CHART_COLORS.length]}
-                            strokeWidth={2} dot={false} isAnimationActive={false}
-                            activeDot={{ r: 4, fill: CHART_COLORS[idx % CHART_COLORS.length] }} />
+                            strokeWidth={2}
+                            dot={false}
+                            isAnimationActive={false}
+                            connectNulls={true}
+                            activeDot={{ r: 4, fill: CHART_COLORS[idx % CHART_COLORS.length] }}
+                          />
                         ))}
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
+                  {/* Legend */}
+                  <div style={{
+                    display: "flex", flexWrap: "wrap" as const,
+                    gap: "8px 16px", marginTop: 12, paddingTop: 10,
+                    borderTop: "1px solid var(--border-dim)",
+                  }}>
+                    {urls.map((u, idx) => (
+                      <div key={u} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{
+                          width: 20, height: 2,
+                          background: CHART_COLORS[idx % CHART_COLORS.length],
+                          borderRadius: 1,
+                        }} />
+                        <span style={{
+                          fontSize: 11, color: "var(--text-secondary)",
+                          fontFamily: "var(--font-mono)",
+                        }}>
+                          {shortUrl(u)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* ── Empty state ── */}
+        {!loading && !data && (
+          <div className="vl-card">
+            <div className="vl-empty">
+              <div style={{ fontSize: 32, marginBottom: 10 }}>◎</div>
+              <div style={{ fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6 }}>
+                No URLs configured
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                Add URLs to monitor in{" "}
+                <a href="/webrunner/config" style={{ color: "var(--accent)" }}>Config</a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Loading shimmer ── */}
+        {loading && !data && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {[120, 280, 280].map((h, i) => (
+              <div key={i} className="vl-card">
+                <div className="vl-card-header">
+                  <div className="vl-shimmer" style={{ width: 120, height: 14 }} />
+                </div>
+                <div className="vl-card-body">
+                  <div className="vl-shimmer" style={{ height: h }} />
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {!data && !loading && !urlsLoading && (
-          <div className="vl-card">
-            <div className="vl-empty">
-              <div style={{ fontSize: 32, marginBottom: 10 }}>◎</div>
-              <div style={{ fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6 }}>No data loaded</div>
-              <div>Select a device and click <strong style={{ color: "var(--accent)" }}>Run Query</strong></div>
-            </div>
-          </div>
-        )}
-
-        {(loading || urlsLoading) && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {[280, 280].map((h, i) => (
-              <div key={i} className="vl-card">
-                <div className="vl-card-header"><div className="vl-shimmer" style={{ width: 120, height: 14 }} /></div>
-                <div className="vl-card-body"><div className="vl-shimmer" style={{ height: h }} /></div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </>
   );
