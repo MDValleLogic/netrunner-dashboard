@@ -13,10 +13,11 @@ async function ouiLookup(mac: string | null | undefined): Promise<string | null>
       `https://api.fingerbank.org/api/v2/combinations/interrogate?${params}`,
       { signal: AbortSignal.timeout(4000) }
     );
-    if (!res.ok) return null;
+    if (!res.ok) { console.error("[fingerbank] HTTP", res.status, await res.text()); return null; }
     const json = await res.json();
     return json?.device?.name || null;
-  } catch {
+  } catch (e: any) {
+    console.error("[fingerbank] error:", e.message);
     return null;
   }
 }
@@ -39,12 +40,13 @@ export async function POST(req: NextRequest) {
     );
 
     const vendorMap = new Map<string, string | null>();
-    await Promise.all(
-      Array.from(uniqueOuis).map(async oui => {
-        const vendor = await ouiLookup(oui);
-        vendorMap.set(oui, vendor);
-      })
-    );
+    // Lookup in small batches to avoid rate limiting / timeouts
+    const ouiList = Array.from(uniqueOuis).slice(0, 15);
+    const results = await Promise.allSettled(ouiList.map(oui => ouiLookup(oui)));
+    ouiList.forEach((oui, i) => {
+      const r = results[i];
+      vendorMap.set(oui, r.status === "fulfilled" ? r.value : null);
+    });
 
     for (const n of networks) {
       const { bssid, ssid, signal_dbm, channel, frequency_mhz, band, security } = n;
