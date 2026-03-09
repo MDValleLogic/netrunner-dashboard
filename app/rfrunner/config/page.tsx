@@ -229,7 +229,7 @@ export default function RFRunnerConfigPage() {
 
         {/* Coming soon notice */}
         <div className="px-4 py-3 rounded-lg bg-gray-900/40 border border-gray-800 text-xs font-mono text-gray-600">
-          ℹ Active Mode execution is coming in a future update. Settings saved here will be used when Active Mode is deployed to the Pi.
+          ℹ Active Mode is live. Run wifitest.py manually on the Pi, or scheduled execution via systemd timer is coming in a future update.
         </div>
 
       </div>
