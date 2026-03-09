@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
+// Look up vendor from BSSID/MAC using macvendors.com (free, no key needed)
+async function ouiLookup(mac: string | null | undefined): Promise<string | null> {
+  if (!mac) return null;
+  try {
+    const oui = mac.replace(/[:-]/g, "").slice(0, 6).toUpperCase();
+    const res = await fetch(`https://api.macvendors.com/${oui}`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return null;
+    const vendor = await res.text();
+    return vendor?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -12,6 +28,9 @@ export async function POST(req: NextRequest) {
 
     const ts = ts_utc || new Date().toISOString();
 
+    // OUI lookup for the connected AP BSSID
+    const bssid_vendor = await ouiLookup(rf_details?.bssid);
+
     await sql`
       INSERT INTO wifi_tests (
         device_id, ts_utc, ssid,
@@ -19,6 +38,7 @@ export async function POST(req: NextRequest) {
         dhcp_success, dhcp_time_ms, ip_assigned, gateway, dns_servers,
         ping_success, ping_latency_ms, ping_loss_pct,
         bssid, rssi_dbm, channel, band, frequency_mhz,
+        bssid_vendor,
         host_count, open_ports, risk_score, findings
       ) VALUES (
         ${device_id},
@@ -40,6 +60,7 @@ export async function POST(req: NextRequest) {
         ${rf_details?.channel ?? null},
         ${rf_details?.band ?? null},
         ${rf_details?.frequency_mhz ?? null},
+        ${bssid_vendor},
         ${security_scan?.host_count ?? null},
         ${JSON.stringify(security_scan?.open_ports_found ?? [])},
         ${security_scan?.risk_score ?? null},
@@ -47,7 +68,7 @@ export async function POST(req: NextRequest) {
       )
     `;
 
-    return NextResponse.json({ ok: true, device_id, ts });
+    return NextResponse.json({ ok: true, device_id, ts, bssid_vendor });
   } catch (e: any) {
     console.error("[rfrunner/wifi-test]", e.message);
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
