@@ -6,13 +6,18 @@ export const dynamic = "force-dynamic";
 async function ouiLookup(mac: string | null | undefined): Promise<string | null> {
   if (!mac) return null;
   try {
-    const parts = mac.split(/[:-]/); const oui = parts.slice(0, 3).join(':').toUpperCase();
-    const res = await fetch(`https://api.macvendors.com/${oui}`, {
-      signal: AbortSignal.timeout(3000),
-    });
+    const res = await fetch(
+      `https://api.fingerbank.org/api/v2/combinations/interrogate?key=${process.env.FINGERBANK_API_KEY}`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mac }),
+        signal: AbortSignal.timeout(4000),
+      }
+    );
     if (!res.ok) return null;
-    const vendor = await res.text();
-    return vendor?.trim() || null;
+    const json = await res.json();
+    return json?.device?.name || null;
   } catch {
     return null;
   }
