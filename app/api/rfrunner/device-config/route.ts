@@ -2,7 +2,6 @@ import { sql } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
-// Device-authenticated endpoint — Pi fetches its own RF config by device_id
 export async function GET(req: NextRequest) {
   try {
     const device_id = req.nextUrl.searchParams.get("device_id");
@@ -13,9 +12,7 @@ export async function GET(req: NextRequest) {
       WHERE device_id = ${device_id} AND claimed = true
       LIMIT 1
     ` as any[];
-    if (!devices.length) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-    const device_id = devices[0].device_id;
+    if (!devices.length) return NextResponse.json({ error: "device not found" }, { status: 404 });
 
     const rows = await sql`
       SELECT * FROM rfrunner_config
@@ -25,14 +22,7 @@ export async function GET(req: NextRequest) {
     if (!rows.length) {
       return NextResponse.json({
         ok: true,
-        config: {
-          scan_enabled: true,
-          scan_interval: 60,
-          active_enabled: false,
-          active_ssid: "",
-          active_psk: "",
-          active_interval: 1800,
-        }
+        config: { scan_enabled: true, scan_interval: 60, active_enabled: false, active_ssid: "", active_psk: "", active_interval: 1800 }
       });
     }
 
