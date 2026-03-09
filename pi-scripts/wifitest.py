@@ -352,6 +352,7 @@ def phase_teardown():
     log("Phase 6 — Teardown")
 
     run(f"sudo dhclient -r {IFACE}", timeout=10)
+    run("sudo bash -c 'echo nameserver 1.1.1.1 > /etc/resolv.conf && echo nameserver 1.0.0.1 >> /etc/resolv.conf'", timeout=5)
     run(f"sudo pkill -f 'wpa_supplicant.*{IFACE}'", timeout=5)
     run("sudo rm -f /tmp/wpa_vl.pid /tmp/wpa_vl.log", timeout=5)
     run(f"sudo ip addr flush dev {IFACE}", timeout=5)
