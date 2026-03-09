@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 async function ouiLookup(mac: string | null | undefined): Promise<string | null> {
   if (!mac) return null;
   try {
-    const oui = mac.replace(/[:-]/g, "").slice(0, 6).toUpperCase();
+    const parts = mac.split(/[:-]/); const oui = parts.slice(0, 3).join(':').toUpperCase();
     const res = await fetch(`https://api.macvendors.com/${oui}`, {
       signal: AbortSignal.timeout(3000),
     });
