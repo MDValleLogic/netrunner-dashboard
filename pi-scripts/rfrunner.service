@@ -1,0 +1,16 @@
+[Unit]
+Description=RFRunner WiFi Scanner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mark
+WorkingDirectory=/opt/vallelogic/rfrunner
+EnvironmentFile=/etc/vallelogic/device.env
+ExecStart=/usr/bin/python3 -u /opt/vallelogic/rfrunner/rfrunner.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
