@@ -6,14 +6,13 @@ export const dynamic = "force-dynamic";
 async function ouiLookup(mac: string | null | undefined): Promise<string | null> {
   if (!mac) return null;
   try {
+    const params = new URLSearchParams({
+      key: process.env.FINGERBANK_API_KEY || "",
+      mac,
+    });
     const res = await fetch(
-      `https://api.fingerbank.org/api/v2/combinations/interrogate?key=${process.env.FINGERBANK_API_KEY}`,
-      {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mac }),
-        signal: AbortSignal.timeout(4000),
-      }
+      `https://api.fingerbank.org/api/v2/combinations/interrogate?${params}`,
+      { signal: AbortSignal.timeout(4000) }
     );
     if (!res.ok) return null;
     const json = await res.json();
