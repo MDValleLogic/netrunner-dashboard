@@ -330,8 +330,9 @@ export default function ActiveModePage() {
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb", marginBottom: 12 }}>
                     Open Ports — {selected.open_ports.length} found
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "0 16px", fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(75,85,99,0.4)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: "0 16px", fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid rgba(75,85,99,0.4)" }}>
                     <span>Host</span>
+                    <span>Hostname</span>
                     <span>Port</span>
                     <span>Service</span>
                   </div>
@@ -339,12 +340,13 @@ export default function ActiveModePage() {
                     const isRisky = [23, 445, 3389].includes(p.port);
                     return (
                       <div key={i} style={{
-                        display: "grid", gridTemplateColumns: "1fr auto auto",
+                        display: "grid", gridTemplateColumns: "1fr 1fr auto auto",
                         gap: "0 16px", alignItems: "center",
                         padding: "6px 0",
                         borderTop: i > 0 ? "1px solid rgba(75,85,99,0.2)" : "none",
                       }}>
                         <span style={{ fontSize: 12, fontFamily: "monospace", color: "#d1d5db" }}>{p.host}</span>
+                        <span style={{ fontSize: 11, fontFamily: "monospace", color: "#9ca3af" }}>{(p as any).hostname || "—"}</span>
                         <span style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: isRisky ? "#ef4444" : "#60a5fa" }}>
                           {p.port}
                         </span>
