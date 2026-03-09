@@ -1,18 +1,12 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid,
-} from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Globe } from "lucide-react";
 
 type Point = { ts_utc: string; dns_ms: number; http_ms: number; http_err: string; };
-type TimeseriesResp = {
-  ok: boolean; device_id: string; since_minutes: number;
-  urls: string[]; points: number; series: Record<string, Point[]>; error?: string;
-};
-type DeviceRow = { device_id: string; nr_serial?: string; updated_at?: string; };
+type TimeseriesResp = { ok: boolean; device_id: string; urls: string[]; points: number; series: Record<string, Point[]>; error?: string; };
+type DeviceRow = { device_id: string; nr_serial?: string; };
 
 const CHART_COLORS = ["#3b82f6", "#10b981", "#f97316", "#a78bfa", "#ef4444"];
 const TIME_RANGES = [
@@ -37,9 +31,7 @@ function mergeSeries(series: Record<string, Point[]>, field: "dns_ms" | "http_ms
       byTs.get(p.ts_utc)![url] = p[field];
     }
   }
-  return Array.from(byTs.values()).sort(
-    (a, b) => new Date(a.ts_utc as any).getTime() - new Date(b.ts_utc as any).getTime()
-  );
+  return Array.from(byTs.values()).sort((a, b) => new Date(a.ts_utc as any).getTime() - new Date(b.ts_utc as any).getTime());
 }
 function computeStats(series: Record<string, Point[]>) {
   let totalPoints = 0, sumDns = 0, sumHttp = 0, errCount = 0;
@@ -54,8 +46,7 @@ function computeStats(series: Record<string, Point[]>) {
   return {
     avgDns:    totalPoints ? Math.round(sumDns / totalPoints)  : null,
     avgHttp:   totalPoints ? Math.round(sumHttp / totalPoints) : null,
-    errCount,
-    totalPoints,
+    errCount, totalPoints,
     errorRate: totalPoints ? ((errCount / totalPoints) * 100).toFixed(1) : "0.0",
   };
 }
@@ -63,11 +54,7 @@ function computeStats(series: Record<string, Point[]>) {
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{
-      background: "#111827", border: "1px solid #374151",
-      borderRadius: 6, padding: "10px 14px",
-      fontSize: 12, fontFamily: "monospace",
-    }}>
+    <div style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, padding: "10px 14px", fontSize: 12, fontFamily: "monospace" }}>
       <div style={{ color: "#6b7280", marginBottom: 6, fontSize: 10 }}>{fmtTime(String(label))}</div>
       {payload.map((entry: any) => (
         <div key={entry.dataKey} style={{ color: entry.color, marginBottom: 2 }}>
@@ -78,41 +65,42 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
+const selStyle = {
+  background: "#111827", border: "1px solid #374151", borderRadius: 6,
+  color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace",
+};
+
 export default function WebRunnerOverview() {
-  const [deviceId, setDeviceId]       = useState("");
-  const [devices, setDevices]         = useState<DeviceRow[]>([]);
-  const [sinceMinutes, setSince]      = useState(60);
-  const [urls, setUrls]               = useState<string[]>([]);
-  const [urlsLoading, setUrlsLoading] = useState(false);
-  const [newUrl, setNewUrl]           = useState("");
-  const [loading, setLoading]         = useState(false);
-  const [data, setData]               = useState<TimeseriesResp | null>(null);
-  const [err, setErr]                 = useState("");
+  const [deviceId, setDeviceId]   = useState("");
+  const [devices, setDevices]     = useState<DeviceRow[]>([]);
+  const [sinceMinutes, setSince]  = useState(60);
+  const [urls, setUrls]           = useState<string[]>([]);
+  const [loading, setLoading]     = useState(false);
+  const [data, setData]           = useState<TimeseriesResp | null>(null);
+  const [err, setErr]             = useState("");
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    fetch("/api/devices/list")
-      .then(r => r.json())
-      .then(j => {
-        if (j?.ok && Array.isArray(j.devices) && j.devices.length > 0) {
-          setDevices(j.devices);
-          setDeviceId(j.devices[0].device_id);
-        }
-      }).catch(() => {});
+    fetch("/api/devices/list").then(r => r.json()).then(j => {
+      if (j?.ok && Array.isArray(j.devices) && j.devices.length > 0) {
+        setDevices(j.devices);
+        setDeviceId(j.devices[0].device_id);
+      }
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!deviceId) return;
-    setUrlsLoading(true); setUrls([]); setData(null); setErr("");
+    setUrls([]); setData(null); setErr("");
     fetch(`/api/webrunner/config?device_id=${encodeURIComponent(deviceId)}`)
       .then(r => r.json())
       .then(j => {
         const configUrls: string[] = j?.config?.urls ?? [];
-        const realUrls = configUrls.filter(u => !u.includes("google.com/generate_204"));
-        if (realUrls.length > 0) setUrls(realUrls.slice(0, 5).map((u: string) => u.replace(/\/$/, "")));
-      }).catch(() => {}).finally(() => setUrlsLoading(false));
+        const filtered = configUrls.filter(u => !u.includes("google.com/generate_204"));
+        if (filtered.length > 0) setUrls(filtered.slice(0, 5).map(u => u.replace(/\/$/, "")));
+      }).catch(() => {});
   }, [deviceId]);
 
   const load = useCallback(async () => {
@@ -127,40 +115,31 @@ export default function WebRunnerOverview() {
       const json = await res.json() as TimeseriesResp;
       if (!json.ok) setErr(json.error || "Request failed");
       else { setData(json); setLastFetched(new Date()); }
-    } catch (e: any) {
-      setErr(e?.message ?? String(e));
-    } finally { setLoading(false); }
+    } catch (e: any) { setErr(e?.message ?? String(e)); }
+    finally { setLoading(false); }
   }, [deviceId, urls, sinceMinutes]);
 
   useEffect(() => { if (urls.length > 0 && deviceId) load(); }, [urls, deviceId]); // eslint-disable-line
-
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (autoRefresh) timerRef.current = setInterval(load, 30_000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [autoRefresh, load]);
-
-  function addUrl() {
-    const u = newUrl.trim().replace(/\/$/, "");
-    if (!u || urls.includes(u) || urls.length >= 5) return;
-    setUrls(prev => [...prev, u]); setNewUrl("");
-  }
+  useEffect(() => { if (urls.length > 0 && deviceId) load(); }, [sinceMinutes]); // eslint-disable-line
 
   const dnsData  = useMemo(() => data?.series ? mergeSeries(data.series, "dns_ms")  : [], [data]);
   const httpData = useMemo(() => data?.series ? mergeSeries(data.series, "http_ms") : [], [data]);
   const stats    = useMemo(() => data?.series ? computeStats(data.series) : null, [data]);
 
   const statCards = [
-    { label: "Avg DNS",     value: stats ? fmtMs(stats.avgDns)  : "—", alert: !!(stats && stats.avgDns  != null && stats.avgDns  > 200) },
-    { label: "Avg HTTP",    value: stats ? fmtMs(stats.avgHttp) : "—", alert: !!(stats && stats.avgHttp != null && stats.avgHttp > 500) },
-    { label: "Error Rate",  value: stats ? `${stats.errorRate}%` : "—", alert: !!(stats && stats.errCount > 0) },
+    { label: "Avg DNS",     value: stats ? fmtMs(stats.avgDns)   : "—", alert: !!(stats?.avgDns  && stats.avgDns  > 200) },
+    { label: "Avg HTTP",    value: stats ? fmtMs(stats.avgHttp)  : "—", alert: !!(stats?.avgHttp && stats.avgHttp > 500) },
+    { label: "Error Rate",  value: stats ? `${stats.errorRate}%` : "—", alert: !!(stats?.errCount && stats.errCount > 0) },
     { label: "Data Points", value: stats ? String(stats.totalPoints) : "—", alert: false },
   ];
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
-
-      {/* Header */}
       <div className="flex items-center justify-between mb-6 max-w-5xl">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
@@ -171,23 +150,24 @@ export default function WebRunnerOverview() {
             <p className="text-xs text-gray-500 font-mono">DNS &amp; HTTP latency · multi-URL</p>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          {lastFetched && (
-            <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>
-              Updated {lastFetched.toLocaleTimeString()}
-            </span>
-          )}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {lastFetched && <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>Updated {lastFetched.toLocaleTimeString()}</span>}
+          <select value={deviceId} onChange={e => setDeviceId(e.target.value)} style={selStyle}>
+            {devices.length === 0 ? <option value="">No devices</option> : devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nr_serial || d.device_id}</option>)}
+          </select>
+          <select value={sinceMinutes} onChange={e => setSince(Number(e.target.value))} style={selStyle}>
+            {TIME_RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          </select>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}>
-            <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)}
-              style={{ accentColor: "#3b82f6" }} />
+            <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} style={{ accentColor: "#3b82f6" }} />
             Auto (30s)
           </label>
         </div>
       </div>
 
-      <div className="max-w-5xl space-y-5">
+      <div className="max-w-5xl space-y-4">
+        {err && <div style={{ padding: "10px 16px", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444", fontSize: 13 }}>⚠ {err}</div>}
 
-        {/* Stat cards */}
         <div className="grid grid-cols-4 gap-3">
           {statCards.map(({ label, value, alert }) => (
             <div key={label} className={`rounded-lg border px-4 py-4 bg-gray-900/60 ${alert ? "border-red-700/60" : "border-gray-700/60"}`}>
@@ -197,106 +177,22 @@ export default function WebRunnerOverview() {
           ))}
         </div>
 
-        {/* Query settings */}
-        <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>Query Settings</span>
-            {err && <span style={{ fontSize: 12, color: "#ef4444" }}>⚠ {err}</span>}
+        {urls.length > 0 && (
+          <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 px-4 py-3 flex items-center gap-4 flex-wrap">
+            {urls.map((u, i) => (
+              <div key={u} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 10, height: 10, borderRadius: "50%", background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                <span style={{ fontSize: 11, fontFamily: "monospace", color: "#9ca3af" }}>{u.replace(/^https?:\/\//, "").replace(/\/$/, "")}</span>
+              </div>
+            ))}
+            {loading && <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace", marginLeft: "auto" }}>Refreshing…</span>}
           </div>
+        )}
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <div style={{ fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Device</div>
-              <select value={deviceId} onChange={e => setDeviceId(e.target.value)} style={{
-                width: "100%", background: "#111827", border: "1px solid #374151", borderRadius: 6,
-                color: "#e5e7eb", padding: "7px 10px", fontSize: 12, fontFamily: "monospace",
-              }}>
-                {devices.length === 0
-                  ? <option value="">No devices registered</option>
-                  : devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nr_serial || d.device_id}</option>)
-                }
-              </select>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Time Window</div>
-              <select value={sinceMinutes} onChange={e => setSince(Number(e.target.value))} style={{
-                width: "100%", background: "#111827", border: "1px solid #374151", borderRadius: 6,
-                color: "#e5e7eb", padding: "7px 10px", fontSize: 12, fontFamily: "monospace",
-              }}>
-                {TIME_RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div style={{ fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
-            URLs to Monitor ({urls.length}/5)
-            {urlsLoading && <span style={{ color: "#3b82f6", marginLeft: 8, textTransform: "none" }}>loading…</span>}
-          </div>
-
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <input
-              type="text" placeholder="https://example.com"
-              value={newUrl} onChange={e => setNewUrl(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && addUrl()}
-              style={{
-                flex: 1, background: "#111827", border: "1px solid #374151", borderRadius: 6,
-                color: "#e5e7eb", padding: "7px 10px", fontSize: 12, fontFamily: "monospace",
-              }}
-            />
-            <button onClick={addUrl} disabled={urls.length >= 5} style={{
-              background: "transparent", border: "1px solid #374151", borderRadius: 6,
-              color: "#9ca3af", padding: "7px 14px", fontSize: 12, cursor: "pointer",
-              fontFamily: "monospace",
-            }}>+ Add</button>
-          </div>
-
-          {urls.length === 0 && !urlsLoading && (
-            <div style={{ fontSize: 12, color: "#6b7280", padding: "8px 0" }}>
-              No URLs configured. Add one above or set them in Config.
-            </div>
-          )}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-            {urls.map((u, i) => {
-              const short = u.replace(/^https?:\/\//, "").replace(/\/$/, "");
-              return (
-                <div key={u} style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  background: "#111827", border: "1px solid #1f2937", borderRadius: 6,
-                  padding: "6px 10px",
-                }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
-                  <span style={{ flex: 1, fontSize: 12, fontFamily: "monospace", color: "#d1d5db", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={u}>{short}</span>
-                  <button onClick={() => setUrls(prev => prev.filter(x => x !== u))} style={{
-                    background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 12, padding: "0 4px",
-                  }}>✕</button>
-                </div>
-              );
-            })}
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button onClick={load} disabled={loading || urls.length === 0 || !deviceId} style={{
-              background: "#1d4ed8", border: "none", borderRadius: 6,
-              color: "#fff", padding: "8px 18px", fontSize: 12, fontWeight: 600,
-              cursor: loading || urls.length === 0 ? "not-allowed" : "pointer",
-              opacity: loading || urls.length === 0 ? 0.5 : 1, fontFamily: "monospace",
-            }}>
-              {loading ? "Loading…" : "▶  Run Query"}
-            </button>
-            {data && (
-              <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>
-                {data.points} pts · {urls.length} URLs
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Charts */}
         {(dnsData.length > 0 || httpData.length > 0) && (
           <>
             {[
-              { title: "DNS Latency", chartData: dnsData },
+              { title: "DNS Latency",        chartData: dnsData  },
               { title: "HTTP Response Time", chartData: httpData },
             ].map(({ title, chartData }) => (
               <div key={title} className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
@@ -316,45 +212,31 @@ export default function WebRunnerOverview() {
                     {urls.map((u, idx) => (
                       <Line key={u} type="monotone" dataKey={u}
                         stroke={CHART_COLORS[idx % CHART_COLORS.length]}
-                        strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true}
-                        activeDot={{ r: 4, fill: CHART_COLORS[idx % CHART_COLORS.length] }} />
+                        strokeWidth={2} dot={false} isAnimationActive={false} connectNulls
+                        activeDot={{ r: 4 }} />
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
-                <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap" }}>
-                  {urls.map((u, idx) => (
-                    <div key={u} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <div style={{ width: 12, height: 2, background: CHART_COLORS[idx % CHART_COLORS.length], borderRadius: 1 }} />
-                      <span style={{ fontSize: 10, fontFamily: "monospace", color: "#9ca3af" }}>
-                        {u.replace(/^https?:\/\//, "").slice(0, 30)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
               </div>
             ))}
           </>
         )}
 
-        {/* Empty state */}
-        {!data && !loading && !urlsLoading && (
-          <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-12 text-center">
-            <Globe size={32} className="text-gray-700 mx-auto mb-4" />
-            <div style={{ fontWeight: 600, color: "#9ca3af", marginBottom: 6 }}>No data loaded</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>
-              Select a device and click <span style={{ color: "#3b82f6" }}>▶ Run Query</span>
-            </div>
-          </div>
-        )}
-
-        {/* Loading shimmer */}
-        {(loading || urlsLoading) && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {loading && !data && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {[220, 220].map((h, i) => (
               <div key={i} className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
                 <div style={{ height: h, background: "#1f2937", borderRadius: 6, opacity: 0.5 }} />
               </div>
             ))}
+          </div>
+        )}
+
+        {!loading && !data && urls.length === 0 && (
+          <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-12 text-center">
+            <Globe size={32} className="text-gray-700 mx-auto mb-4" />
+            <div style={{ fontWeight: 600, color: "#9ca3af", marginBottom: 6 }}>No URLs configured</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>Add URLs to monitor in <span style={{ color: "#3b82f6" }}>WebRunner → Config</span></div>
           </div>
         )}
       </div>
