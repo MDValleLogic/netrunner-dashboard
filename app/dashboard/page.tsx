@@ -99,7 +99,7 @@ export default function WebRunnerOverview() {
       .then(j => {
         const configUrls: string[] = j?.config?.urls ?? [];
         const filtered = configUrls.filter(u => !u.includes("google.com/generate_204"));
-        if (filtered.length > 0) setUrls(filtered.slice(0, 5).map(u => u.replace(/\/$/, "")));
+        if (filtered.length > 0) setUrls(filtered.map(u => u.replace(/\/$/, "")));
       }).catch(() => {});
   }, [deviceId]);
 
