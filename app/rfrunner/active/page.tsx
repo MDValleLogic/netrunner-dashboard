@@ -254,11 +254,11 @@ export default function ActiveModePage() {
                   <div style={{ fontSize: 10, color: "#6b7280", fontFamily: "monospace", marginTop: 2 }}>{selected.gateway || "—"}</div>
                 </div>
 
-                {/* RF Details — with vendor */}
+                {/* Associated AP — with vendor */}
                 <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
                     <Wifi size={13} style={{ color: signalColor(selected.rssi_dbm) }} />
-                    <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>RF Details</span>
+                    <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>Associated AP</span>
                   </div>
                   <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: signalColor(selected.rssi_dbm), marginBottom: 4 }}>
                     {selected.rssi_dbm != null ? `${selected.rssi_dbm} dBm` : "—"}
