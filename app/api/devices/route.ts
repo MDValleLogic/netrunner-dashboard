@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const rows = await sql`
       SELECT
-        device_id, nr_serial, status, nickname, site_name,
+        device_id, nr_serial, status, nickname, site_name, location,
         address, lat, lng, agent_version, last_seen, last_ip,
         image_version, provisioned_at, claimed_at, tenant_id
       FROM devices
@@ -23,7 +23,7 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { device_id, nickname, address, site_name } = body;
+    const { device_id, nickname, address, site_name, location } = body;
 
     if (!device_id) {
       return NextResponse.json({ ok: false, error: "device_id required" }, { status: 400 });
@@ -38,12 +38,14 @@ export async function PATCH(req: NextRequest) {
         const encoded = encodeURIComponent(address.trim());
         const geoRes = await fetch(
           `https://maps.googleapis.com/maps/api/geocode/json?address=${encoded}&key=${process.env.GOOGLE_GEOCODING_API_KEY}`,
-          { signal: AbortSignal.timeout(5000) }
+          { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined }
         );
         const geoJson = await geoRes.json();
+        console.log("[geocode] status:", geoJson.status, "key present:", !!process.env.GOOGLE_GEOCODING_API_KEY);
         if (geoJson.status === "OK" && geoJson.results?.[0]) {
           lat = geoJson.results[0].geometry.location.lat;
           lng = geoJson.results[0].geometry.location.lng;
+          console.log("[geocode] got:", lat, lng);
         }
       } catch (e) {
         console.error("[geocode] failed:", e);
@@ -59,6 +61,9 @@ export async function PATCH(req: NextRequest) {
     }
     if (site_name !== undefined) {
       await sql`UPDATE devices SET site_name = ${site_name}, updated_at = now() WHERE device_id = ${device_id}`;
+    }
+    if (location !== undefined) {
+      await sql`UPDATE devices SET location = ${location}, updated_at = now() WHERE device_id = ${device_id}`;
     }
     if (lat !== null && lng !== null) {
       await sql`UPDATE devices SET lat = ${lat}, lng = ${lng}, updated_at = now() WHERE device_id = ${device_id}`;
