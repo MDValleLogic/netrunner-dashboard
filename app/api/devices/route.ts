@@ -50,16 +50,19 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    await sql`
-      UPDATE devices SET
-        nickname   = COALESCE(${nickname ?? null}, nickname),
-        address    = COALESCE(${address ?? null}, address),
-        site_name  = COALESCE(${site_name ?? null}, site_name),
-        lat        = CASE WHEN ${lat} IS NOT NULL THEN ${lat} ELSE lat END,
-        lng        = CASE WHEN ${lng} IS NOT NULL THEN ${lng} ELSE lng END,
-        updated_at = now()
-      WHERE device_id = ${device_id}
-    `;
+    // Build update conditionally to avoid null overwriting existing values
+    if (nickname !== undefined) {
+      await sql`UPDATE devices SET nickname = ${nickname}, updated_at = now() WHERE device_id = ${device_id}`;
+    }
+    if (address !== undefined) {
+      await sql`UPDATE devices SET address = ${address}, updated_at = now() WHERE device_id = ${device_id}`;
+    }
+    if (site_name !== undefined) {
+      await sql`UPDATE devices SET site_name = ${site_name}, updated_at = now() WHERE device_id = ${device_id}`;
+    }
+    if (lat !== null && lng !== null) {
+      await sql`UPDATE devices SET lat = ${lat}, lng = ${lng}, updated_at = now() WHERE device_id = ${device_id}`;
+    }
 
     return NextResponse.json({ ok: true, lat, lng });
   } catch (e: any) {
