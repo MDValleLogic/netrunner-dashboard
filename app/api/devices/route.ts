@@ -37,7 +37,7 @@ export async function PATCH(req: NextRequest) {
       try {
         const encoded = encodeURIComponent(address.trim());
         const geoRes = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encoded}&key=${process.env.GOOGLE_MAPS_API_KEY}`,
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encoded}&key=${process.env.GOOGLE_GEOCODING_API_KEY}`,
           { signal: AbortSignal.timeout(5000) }
         );
         const geoJson = await geoRes.json();
