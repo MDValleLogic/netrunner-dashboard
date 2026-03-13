@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     // Get tenant_id for this device
     const devices = await sql`
       SELECT tenant_id FROM devices
-      WHERE device_id = ${device_id} AND claimed = true
+      WHERE device_id = ${device_id} AND status = 'claimed'
     ` as any[];
     if (!devices.length) return NextResponse.json({ error: "device not found" }, { status: 404 });
     const tenant_id = devices[0].tenant_id;

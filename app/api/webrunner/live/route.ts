@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
     const devices = await sql`
       SELECT device_id FROM devices 
-      WHERE tenant_id = ${token.tenantId as string} AND claimed = true
+      WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
       ORDER BY last_seen DESC LIMIT 1
     ` as any[];
 

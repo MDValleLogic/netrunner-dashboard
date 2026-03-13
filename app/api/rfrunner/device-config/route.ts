@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
 
     const devices = await sql`
       SELECT device_id FROM devices
-      WHERE device_id = ${device_id} AND claimed = true
+      WHERE device_id = ${device_id} AND status = 'claimed'
       LIMIT 1
     ` as any[];
     if (!devices.length) return NextResponse.json({ error: "device not found" }, { status: 404 });
