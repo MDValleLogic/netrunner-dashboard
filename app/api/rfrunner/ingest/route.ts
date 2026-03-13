@@ -43,9 +43,9 @@ export async function POST(req: NextRequest) {
     let cacheHits = 0;
 
     if (ouiList.length > 0) {
-      const cached = await sql`
+      const cached = (await sql`
         SELECT oui, vendor FROM mac_vendors WHERE oui = ANY(${ouiList})
-      `;
+      `) as { oui: string; vendor: string | null }[];
       for (const row of cached) {
         vendorMap.set(row.oui, row.vendor);
       }
