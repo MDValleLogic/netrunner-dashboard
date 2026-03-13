@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest) {
       await sql`UPDATE devices SET lat = ${lat}, lng = ${lng}, updated_at = now() WHERE device_id = ${device_id}`;
     }
 
-    return NextResponse.json({ ok: true, lat, lng, _keyPresent: !!process.env.GOOGLE_GEOCODING_API_KEY });
+    return NextResponse.json({ ok: true, lat, lng });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
