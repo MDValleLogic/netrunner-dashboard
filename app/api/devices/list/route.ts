@@ -8,7 +8,8 @@ export async function GET(req: NextRequest) {
     if (!token) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
     const devices = await sql`
-      SELECT device_id, nr_serial, vlos_version, ip, hostname, claimed, last_seen
+      SELECT device_id, nr_serial, agent_version, last_ip, nickname, site_name,
+             location, status, last_seen, address, lat, lng
       FROM devices
       WHERE tenant_id = ${token.tenantId as string}
       ORDER BY last_seen DESC

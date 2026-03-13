@@ -11,9 +11,9 @@ export async function POST(req: NextRequest) {
     if (!nr_serial) return NextResponse.json({ ok: false, error: "missing nr_serial" }, { status: 400 });
 
     const rows = await sql`
-      SELECT device_id, nr_serial, vlos_version, ip, hostname, last_seen
+      SELECT device_id, nr_serial, agent_version, last_ip, last_seen
       FROM devices
-      WHERE nr_serial = ${nr_serial.toUpperCase()} AND claimed = false
+      WHERE nr_serial = ${nr_serial.toUpperCase()} AND status = 'unclaimed'
     ` as any[];
 
     if (!rows.length) return NextResponse.json({ ok: false, error: "Device not found or already claimed" }, { status: 404 });
@@ -22,10 +22,11 @@ export async function POST(req: NextRequest) {
 
     await sql`
       UPDATE devices SET
-        claimed    = true,
+        status     = 'claimed',
         tenant_id  = ${token.tenantId as string},
         claimed_at = NOW(),
-        claimed_by = ${token.id as string}
+        claimed_by = ${token.id as string},
+        updated_at = NOW()
       WHERE device_id = ${device.device_id}
     `;
 
