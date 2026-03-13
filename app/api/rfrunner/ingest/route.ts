@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
 
     const ts = new Date().toISOString();
 
-    // Deduplicate OUI lookups — many BSSIDs share the same vendor prefix
     const uniqueOuis = new Set(
       networks
         .filter(n => n.bssid)
@@ -40,18 +39,41 @@ export async function POST(req: NextRequest) {
     );
 
     const vendorMap = new Map<string, string | null>();
-    // Lookup in small batches to avoid rate limiting / timeouts
-    const ouiList = Array.from(uniqueOuis).slice(0, 15);
-    const results = await Promise.allSettled(ouiList.map(oui => ouiLookup(oui)));
-    ouiList.forEach((oui, i) => {
-      const r = results[i];
-      vendorMap.set(oui, r.status === "fulfilled" ? r.value : null);
-    });
+    const ouiList = Array.from(uniqueOuis);
+    let cacheHits = 0;
+
+    if (ouiList.length > 0) {
+      const cached = await sql`
+        SELECT oui, vendor FROM mac_vendors WHERE oui = ANY(${ouiList})
+      `;
+      for (const row of cached) {
+        vendorMap.set(row.oui, row.vendor);
+      }
+      cacheHits = cached.length;
+    }
+
+    const uncached = ouiList.filter(oui => !vendorMap.has(oui));
+    console.log(`[fingerbank] ${ouiList.length} OUIs total, ${cacheHits} cached, ${uncached.length} need lookup`);
+
+    if (uncached.length > 0) {
+      const results = await Promise.allSettled(uncached.map(oui => ouiLookup(oui)));
+      for (let i = 0; i < uncached.length; i++) {
+        const oui = uncached[i];
+        const r = results[i];
+        const vendor = r.status === "fulfilled" ? r.value : null;
+        vendorMap.set(oui, vendor);
+        await sql`
+          INSERT INTO mac_vendors (oui, vendor, looked_up_at)
+          VALUES (${oui}, ${vendor}, NOW())
+          ON CONFLICT (oui) DO NOTHING
+        `;
+      }
+    }
 
     for (const n of networks) {
       const { bssid, ssid, signal_dbm, channel, frequency_mhz, band, security } = n;
       if (!bssid) continue;
-      const parts2 = bssid.split(/[:-]/); const oui = parts2.slice(0, 3).join(':').toUpperCase();
+      const oui = bssid.split(/[:-]/).slice(0, 3).join(':').toUpperCase();
       const bssid_vendor = vendorMap.get(oui) ?? null;
       await sql`
         INSERT INTO rf_scans (device_id, ts_utc, bssid, ssid, signal_dbm, channel, frequency_mhz, band, security, bssid_vendor)
