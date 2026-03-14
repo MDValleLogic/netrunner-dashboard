@@ -31,7 +31,7 @@ export async function authDevice(deviceKey: string) {
     SELECT device_id, status
     FROM devices
     WHERE device_key_hash = ${deviceKeyHash}
-      AND status = 'active'
+      AND status = 'claimed'
     LIMIT 1
   `;
 
@@ -81,7 +81,7 @@ export async function verifyDevice(
     SELECT device_key_hash
     FROM devices
     WHERE device_id = ${deviceId}
-      AND status = 'active'
+      AND status = 'claimed'
     LIMIT 1
   `;
 

@@ -14,13 +14,17 @@ const SAFE_DEFAULT = {
 };
 
 export async function GET(req: Request) {
+  // Allow both browser session (dashboard) and device key auth (Pi)
   const session = await getServerSession(authOptions);
-  const auth = session
-    ? { ok: true, deviceId: new URL(req.url).searchParams.get("device_id") || "" }
-    : await verifyDevice(req);
-  if (!auth.ok) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { searchParams } = new URL(req.url);
+  const deviceId = searchParams.get("device_id") || "";
 
-  const deviceId = auth.deviceId;
+  if (!session) {
+    // Must be a Pi — verify device key
+    const auth = await verifyDevice(req);
+    if (!auth.ok) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   if (!deviceId) return NextResponse.json({ ok: true, config: SAFE_DEFAULT });
 
   try {
