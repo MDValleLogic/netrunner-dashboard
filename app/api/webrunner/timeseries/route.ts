@@ -11,16 +11,20 @@ export async function GET(req: NextRequest) {
     const window_minutes = parseInt(searchParams.get("window_minutes") || "60");
     const bucket_seconds = parseInt(searchParams.get("bucket_seconds") || "60");
     const cutoff = new Date(Date.now() - window_minutes * 60 * 1000).toISOString();
-    const bucket_interval = `${bucket_seconds} seconds`;
+    const paramDeviceId = searchParams.get("device_id");
 
-    const devices = await sql`
-      SELECT device_id FROM devices
-      WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
-      ORDER BY last_seen DESC LIMIT 1
-    ` as any[];
-
-    if (!devices.length) return NextResponse.json({ buckets: [] });
-    const device_id = devices[0].device_id;
+    let device_id: string;
+    if (paramDeviceId) {
+      device_id = paramDeviceId;
+    } else {
+      const devices = await sql`
+        SELECT device_id FROM devices
+        WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
+        ORDER BY last_seen DESC LIMIT 1
+      ` as any[];
+      if (!devices.length) return NextResponse.json({ buckets: [] });
+      device_id = devices[0].device_id;
+    }
 
     const buckets = await sql`
       SELECT

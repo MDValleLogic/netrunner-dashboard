@@ -10,15 +10,20 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const target = searchParams.get("target");
     const limit  = parseInt(searchParams.get("limit") || "20");
+    const paramDeviceId = searchParams.get("device_id");
 
-    const devices = await sql`
-      SELECT device_id FROM devices 
-      WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
-      ORDER BY last_seen DESC LIMIT 1
-    ` as any[];
-
-    if (!devices.length) return NextResponse.json({ traces: [] });
-    const device_id = devices[0].device_id;
+    let device_id: string;
+    if (paramDeviceId) {
+      device_id = paramDeviceId;
+    } else {
+      const devices = await sql`
+        SELECT device_id FROM devices
+        WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
+        ORDER BY last_seen DESC LIMIT 1
+      ` as any[];
+      if (!devices.length) return NextResponse.json({ traces: [] });
+      device_id = devices[0].device_id;
+    }
 
     const traces = await sql`
       SELECT t.id, t.ts_utc, t.target, t.dest_ip, t.hop_count, t.total_hops,

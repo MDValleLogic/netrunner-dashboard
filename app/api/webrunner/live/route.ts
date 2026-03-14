@@ -10,15 +10,20 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const window_minutes = parseInt(searchParams.get("window_minutes") || "60");
     const cutoff = new Date(Date.now() - window_minutes * 60 * 1000).toISOString();
+    const paramDeviceId = searchParams.get("device_id");
 
-    const devices = await sql`
-      SELECT device_id FROM devices 
-      WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
-      ORDER BY last_seen DESC LIMIT 1
-    ` as any[];
-
-    if (!devices.length) return NextResponse.json({ device: null, measurements: [] });
-    const device_id = devices[0].device_id;
+    let device_id: string;
+    if (paramDeviceId) {
+      device_id = paramDeviceId;
+    } else {
+      const devices = await sql`
+        SELECT device_id FROM devices
+        WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
+        ORDER BY last_seen DESC LIMIT 1
+      ` as any[];
+      if (!devices.length) return NextResponse.json({ device: null, measurements: [] });
+      device_id = devices[0].device_id;
+    }
 
     const device = await sql`
       SELECT device_id, nr_serial, agent_version, last_ip, nickname, status, last_seen

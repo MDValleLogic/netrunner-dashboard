@@ -11,11 +11,11 @@ export async function GET(req: NextRequest) {
     const range = req.nextUrl.searchParams.get("range") ?? "24h";
     const interval = range === "30d" ? "30 days" : range === "7d" ? "7 days" : "24 hours";
 
-    // Use device_id from query param if provided, otherwise pick most recent for tenant
-    const paramDeviceId = req.nextUrl?.searchParams?.get("device_id") || new URL(req.url).searchParams.get("device_id") || null;
-    let device_id_to_use: string;
+    const paramDeviceId = new URL(req.url).searchParams.get("device_id");
+    let device_id: string;
+
     if (paramDeviceId) {
-      device_id_to_use = paramDeviceId;
+      device_id = paramDeviceId;
     } else {
       const devices = await sql`
         SELECT device_id FROM devices
@@ -23,7 +23,8 @@ export async function GET(req: NextRequest) {
         ORDER BY last_seen DESC LIMIT 1
       ` as any[];
       if (!devices.length) return NextResponse.json({ rows: [] });
-    const device_id = devices[0].device_id;
+      device_id = devices[0].device_id;
+    }
 
     const rows = await sql`
       SELECT hour_utc, ap_count, ssid_count, best_signal, avg_signal,

@@ -8,11 +8,11 @@ export async function GET(req: NextRequest) {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
     if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-    // Use device_id from query param if provided, otherwise pick most recent for tenant
-    const paramDeviceId = req.nextUrl?.searchParams?.get("device_id") || new URL(req.url).searchParams.get("device_id") || null;
-    let device_id_to_use: string;
+    const paramDeviceId = new URL(req.url).searchParams.get("device_id");
+    let device_id: string;
+
     if (paramDeviceId) {
-      device_id_to_use = paramDeviceId;
+      device_id = paramDeviceId;
     } else {
       const devices = await sql`
         SELECT device_id FROM devices
@@ -20,9 +20,9 @@ export async function GET(req: NextRequest) {
         ORDER BY last_seen DESC LIMIT 1
       ` as any[];
       if (!devices.length) return NextResponse.json({ networks: [] });
-    const device_id = devices[0].device_id;
+      device_id = devices[0].device_id;
+    }
 
-    // Get the most recent scan timestamp
     const latest = await sql`
       SELECT ts_utc FROM rf_scans
       WHERE device_id = ${device_id}
@@ -32,9 +32,8 @@ export async function GET(req: NextRequest) {
 
     const ts = latest[0].ts_utc;
 
-    // Get all networks from that scan
     const networks = await sql`
-      SELECT bssid, ssid, signal_dbm, channel, frequency_mhz, band, security, ts_utc
+      SELECT bssid, ssid, signal_dbm, channel, frequency_mhz, band, security, bssid_vendor, ts_utc
       FROM rf_scans
       WHERE device_id = ${device_id} AND ts_utc = ${ts}
       ORDER BY signal_dbm DESC
