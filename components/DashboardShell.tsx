@@ -24,7 +24,7 @@ const Icon = {
 
 const NAV = [
   { section: "WebRunner", links: [
-    { href: "/devices/map",       label: "Device Map",    icon: "grid"     },
+    { href: "/webrunner/overview", label: "Overview",      icon: "grid"     },
     { href: "/webrunner/live",    label: "Live Feed",     icon: "activity" },
     { href: "/webrunner/history", label: "History",       icon: "clock"    },
     { href: "/webrunner/config",  label: "Config",        icon: "settings" },
@@ -53,8 +53,9 @@ const NAV = [
     { href: "/commandrunner", label: "CommandRunner", icon: "terminal", phase: "P3", disabled: true },
   ]},
   { section: "System", links: [
-    { href: "/settings/devices",          label: "Device Setup", icon: "cpu"   },
-    { href: "/settings/users", label: "Users",        icon: "users" },
+    { href: "/devices/map",      label: "Device Map",   icon: "grid"  },
+    { href: "/settings/devices", label: "Device Setup", icon: "cpu"   },
+    { href: "/settings/users",   label: "Users",        icon: "users" },
   ]},
 ];
 
