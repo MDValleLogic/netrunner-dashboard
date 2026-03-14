@@ -1,4 +1,5 @@
 "use client";
+import { useDevice } from "@/lib/deviceContext";
 
 import { useEffect, useState } from "react";
 import { Settings, Save, Wifi, Radio } from "lucide-react";
@@ -27,6 +28,7 @@ const ACTIVE_INTERVAL_OPTIONS = [
 ];
 
 export default function RFRunnerConfigPage() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [config, setConfig] = useState<RFConfig>({
     scan_enabled: true,
     scan_interval: 60,
@@ -42,7 +44,7 @@ export default function RFRunnerConfigPage() {
   const [showPsk, setShowPsk]   = useState(false);
 
   useEffect(() => {
-    fetch("/api/rfrunner/config")
+    fetch(`/api/rfrunner/config${selectedDeviceId ? "?device_id="+selectedDeviceId : ""}`)
       .then(r => r.json())
       .then(j => { if (j.config) setConfig(j.config); })
       .catch(e => setError(e.message))

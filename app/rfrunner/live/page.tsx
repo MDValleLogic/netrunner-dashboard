@@ -1,4 +1,5 @@
 "use client";
+import { useDevice } from "@/lib/deviceContext";
 
 import { useEffect, useState, useCallback } from "react";
 import { ChevronDown, ChevronRight, Wifi, RefreshCw, Radio } from "lucide-react";
@@ -179,6 +180,7 @@ function SSIDRow({ group }: { group: SSIDGroup }) {
 }
 
 export default function RFRunnerLivePage() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [networks, setNetworks] = useState<RawNetwork[]>([]);
   const [groups, setGroups] = useState<SSIDGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,7 +192,7 @@ export default function RFRunnerLivePage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch("/api/rfrunner/live");
+      const res = await fetch(`/api/rfrunner/live${selectedDeviceId ? "?device_id="+selectedDeviceId : ""}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const nets: RawNetwork[] = json.networks ?? [];
@@ -205,8 +207,9 @@ export default function RFRunnerLivePage() {
     }
   }, []);
 
+  useEffect(() => { fetchData(); }, [selectedDeviceId]); // eslint-disable-line
+
   useEffect(() => {
-    fetchData();
     const interval = setInterval(fetchData, 60_000);
     return () => clearInterval(interval);
   }, [fetchData]);
@@ -224,6 +227,9 @@ export default function RFRunnerLivePage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
+          </select>
           <div className="flex items-center gap-2 text-xs font-mono">
             <span className="px-3 py-1.5 rounded-full bg-gray-800 border border-gray-700 text-gray-300"><span className="text-white font-semibold">{groups.length}</span> SSIDs</span>
             <span className="px-3 py-1.5 rounded-full bg-gray-800 border border-gray-700 text-gray-300"><span className="text-white font-semibold">{networks.length}</span> APs</span>

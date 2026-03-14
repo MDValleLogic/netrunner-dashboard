@@ -1,4 +1,5 @@
 "use client";
+import { useDevice } from "@/lib/deviceContext";
 
 import { useEffect, useState } from "react";
 import { History, Radio } from "lucide-react";
@@ -37,6 +38,7 @@ const tooltipStyle = {
 };
 
 export default function RFRunnerHistoryPage() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [rows, setRows]       = useState<HourlyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
@@ -44,12 +46,13 @@ export default function RFRunnerHistoryPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/rfrunner/history?range=${range}`)
+    fetch(`/api/rfrunner/history?range=${range}${selectedDeviceId ? "&device_id="+selectedDeviceId : ""}`)
       .then(r => r.json())
       .then(j => setRows(j.rows ?? []))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [range]);
+  useEffect(() => { fetchData(); }, [selectedDeviceId]); // eslint-disable-line
 
   // Chart data — oldest first for left-to-right time flow
   const chartData = [...rows].reverse().map(r => ({

@@ -1,4 +1,5 @@
 "use client";
+import { useDevice } from "@/lib/deviceContext";
 import React, { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Radio } from "lucide-react";
@@ -31,12 +32,13 @@ function signalColor(dbm: number): string {
 }
 
 export default function RFRunnerOverview() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [networks, setNetworks] = useState<RFNetwork[]>([]);
   const [ts, setTs]             = useState<string | null>(null);
   const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
-    fetch("/api/rfrunner/live")
+    fetch(`/api/rfrunner/live${selectedDeviceId ? "?device_id="+selectedDeviceId : ""}`)
       .then(r => r.json())
       .then(j => { if (j.networks) { setNetworks(j.networks); setTs(j.ts_utc); } })
       .finally(() => setLoading(false));
@@ -72,6 +74,9 @@ export default function RFRunnerOverview() {
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6 max-w-5xl">
+        <div style={display:"flex",alignItems:"center",gap:8,marginBottom:0}><select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
+          </select></div>
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
             <Radio size={20} className="text-blue-400" />
