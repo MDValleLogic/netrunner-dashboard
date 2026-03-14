@@ -6,7 +6,7 @@ import { Globe } from "lucide-react";
 
 type Point = { ts_utc: string; dns_ms: number; http_ms: number; http_err: string; };
 type TimeseriesResp = { ok: boolean; device_id: string; urls: string[]; points: number; series: Record<string, Point[]>; error?: string; };
-type DeviceRow = { device_id: string; nr_serial?: string; };
+type DeviceRow = { device_id: string; nr_serial?: string; nickname?: string; };
 
 const CHART_COLORS = ["#3b82f6", "#10b981", "#f97316", "#a78bfa", "#ef4444"];
 const TIME_RANGES = [
