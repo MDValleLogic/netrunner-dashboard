@@ -21,7 +21,7 @@ const selectStyle = {
 
 export default function WebRunnerConfigPage() {
   const [deviceId, setDeviceId]   = useState("");
-  const [devices, setDevices]     = useState<{device_id: string; nr_serial?: string}[]>([]);
+  const [devices, setDevices]     = useState<{device_id: string; nr_serial?: string; nickname?: string}[]>([]);
   const [urls, setUrls]           = useState<string[]>([]);
   const [newUrl, setNewUrl]       = useState("");
   const [interval, setIntervalS]  = useState(300);
@@ -120,7 +120,7 @@ export default function WebRunnerConfigPage() {
               <select value={deviceId} onChange={e => setDeviceId(e.target.value)} style={selectStyle}>
                 {devices.length === 0
                   ? <option value="">No devices</option>
-                  : devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nr_serial || d.device_id}</option>)
+                  : devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial || d.device_id}</option>)
                 }
               </select>
             </div>
