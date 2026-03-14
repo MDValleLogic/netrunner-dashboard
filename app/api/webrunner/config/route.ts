@@ -21,22 +21,24 @@ export async function GET(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const deviceId = auth.deviceId;
+  if (!deviceId) return NextResponse.json({ ok: true, config: SAFE_DEFAULT });
 
   try {
     const rows = (await sql`
-      SELECT interval_seconds, urls FROM device_config
-      WHERE device_id = ${deviceId} LIMIT 1
+      SELECT config_json FROM device_config
+      WHERE device_id = ${deviceId} AND config_key = 'webrunner'
+      LIMIT 1
     `) as any[];
 
     if (!rows.length) return NextResponse.json({ ok: true, config: SAFE_DEFAULT });
 
-    const r = rows[0];
+    const cfg = rows[0].config_json;
     return NextResponse.json({
       ok: true,
       config: {
-        urls: Array.isArray(r.urls) ? r.urls : SAFE_DEFAULT.urls,
-        interval_seconds: r.interval_seconds || SAFE_DEFAULT.interval_seconds,
-        timeout_seconds: SAFE_DEFAULT.timeout_seconds,
+        urls: Array.isArray(cfg.urls) ? cfg.urls : SAFE_DEFAULT.urls,
+        interval_seconds: cfg.interval_seconds || SAFE_DEFAULT.interval_seconds,
+        timeout_seconds: cfg.timeout_seconds || SAFE_DEFAULT.timeout_seconds,
       }
     });
   } catch (err) {
@@ -60,15 +62,15 @@ export async function POST(req: Request) {
     ? urls.filter((u: any) => typeof u === "string" && u.startsWith("http"))
     : [];
   const interval = Number.isFinite(Number(interval_seconds)) ? Number(interval_seconds) : 300;
+  const config = { urls: cleanUrls, interval_seconds: interval, timeout_seconds: 10 };
 
   await sql`
-    INSERT INTO device_config (device_id, urls, interval_seconds, updated_at)
-    VALUES (${device_id}, ${cleanUrls}, ${interval}, NOW())
-    ON CONFLICT (device_id) DO UPDATE SET
-      urls = EXCLUDED.urls,
-      interval_seconds = EXCLUDED.interval_seconds,
-      updated_at = NOW()
+    INSERT INTO device_config (device_id, config_key, config_json, updated_at)
+    VALUES (${device_id}, 'webrunner', ${JSON.stringify(config)}::jsonb, NOW())
+    ON CONFLICT (device_id, config_key) DO UPDATE SET
+      config_json = EXCLUDED.config_json,
+      updated_at  = NOW()
   `;
 
-  return NextResponse.json({ ok: true, config: { urls: cleanUrls, interval_seconds: interval } });
+  return NextResponse.json({ ok: true, config });
 }
