@@ -1,4 +1,5 @@
 "use client";
+import { useDevice } from "@/lib/deviceContext";
 
 import React, { useEffect, useState } from "react";
 import { Shield, Wifi, Clock, Server, AlertTriangle } from "lucide-react";
@@ -70,29 +71,28 @@ function PhaseIndicator({ success, label }: { success: boolean | null; label: st
 }
 
 export default function ActiveModePage() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [tests, setTests]           = useState<WifiTest[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading]       = useState(true);
 
   useEffect(() => {
-    fetch("/api/devices/list")
+    if (!selectedDeviceId) return;
+    setLoading(true);
+    fetch(`/api/rfrunner/wifi-test?device_id=${encodeURIComponent(selectedDeviceId)}&limit=20`)
       .then(r => r.json())
-      .then(j => {
-        if (j?.ok && j.devices?.length > 0) {
-          const id = j.devices[0].device_id;
-          return fetch(`/api/rfrunner/wifi-test?device_id=${encodeURIComponent(id)}&limit=20`);
-        }
-      })
-      .then(r => r?.json())
       .then(j => {
         if (j?.ok && j.tests?.length > 0) {
           setTests(j.tests);
           setSelectedId(String(j.tests[0].id));
+        } else {
+          setTests([]);
+          setSelectedId(null);
         }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedDeviceId]);
 
   const selected = tests.find(t => String(t.id) === selectedId) ?? null;
   const risk = riskColor(selected?.risk_score ?? null);
@@ -111,11 +111,16 @@ export default function ActiveModePage() {
             <p className="text-xs text-gray-500 font-mono">WiFi association · DHCP · security scan</p>
           </div>
         </div>
-        {tests.length > 0 && (
-          <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>
-            {tests.length} test{tests.length !== 1 ? "s" : ""} on record
-          </span>
-        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
+          </select>
+          {tests.length > 0 && (
+            <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>
+              {tests.length} test{tests.length !== 1 ? "s" : ""} on record
+            </span>
+          )}
+        </div>
       </div>
 
       {loading && (
