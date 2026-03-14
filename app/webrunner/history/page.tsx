@@ -121,7 +121,7 @@ export default function WebRunnerHistoryPage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {[
-            { value: deviceId, onChange: (v: string) => setDeviceId(v), options: devices.map(d => ({ value: d.device_id, label: d.nr_serial || d.device_id })) },
+            { value: deviceId, onChange: (v: string) => setDeviceId(v), options: devices.map(d => ({ value: d.device_id, label: d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial || d.device_id })) },
             { value: String(window_), onChange: (v: string) => setWindow(Number(v)), options: WINDOWS.map(w => ({ value: String(w.value), label: w.label })) },
             { value: String(bucket),  onChange: (v: string) => setBucket(Number(v)),  options: BUCKETS.map(b => ({ value: String(b.value), label: b.label })) },
           ].map((s, i) => (

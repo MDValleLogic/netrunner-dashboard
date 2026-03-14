@@ -153,7 +153,7 @@ export default function WebRunnerOverview() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {lastFetched && <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>Updated {lastFetched.toLocaleTimeString()}</span>}
           <select value={deviceId} onChange={e => setDeviceId(e.target.value)} style={selStyle}>
-            {devices.length === 0 ? <option value="">No devices</option> : devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nr_serial || d.device_id}</option>)}
+            {devices.length === 0 ? <option value="">No devices</option> : devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial || d.device_id}</option>)}
           </select>
           <select value={sinceMinutes} onChange={e => setSince(Number(e.target.value))} style={selStyle}>
             {TIME_RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
