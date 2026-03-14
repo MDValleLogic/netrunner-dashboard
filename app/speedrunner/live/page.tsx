@@ -31,7 +31,10 @@ export default function SpeedRunnerLive() {
   }
 
   useEffect(() => {
-    fetchData();
+    if (selectedDeviceId) fetchData();
+  }, [selectedDeviceId]); // eslint-disable-line
+
+  useEffect(() => {
     const p = setInterval(fetchData, 30_000);
     const c = setInterval(() => setTick(t => t + 1), 1000);
     return () => { clearInterval(p); clearInterval(c); };
