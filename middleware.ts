@@ -22,7 +22,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/routerunner") ||
     pathname.startsWith("/api/speedrunner") ||
     pathname.startsWith("/api/devices") ||
-    pathname.startsWith("/api/rfrunner")
+    pathname.startsWith("/api/rfrunner") ||
+    pathname.startsWith("/api/webrunner")
   ) {
     return NextResponse.next();
   }
