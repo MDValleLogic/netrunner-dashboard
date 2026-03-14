@@ -74,7 +74,7 @@ export default function RFRunnerOverview() {
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6 max-w-5xl">
-        <div style={display:"flex",alignItems:"center",gap:8,marginBottom:0}><select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:0}}><select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
             {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
           </select></div>
         <div className="flex items-center gap-3">
