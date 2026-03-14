@@ -6,7 +6,7 @@ import { Clock } from "lucide-react";
 
 type TimeseriesPoint = { ts_utc: string; avg_latency_ms: number | null; samples: number; ok_samples: number; fail_samples: number; };
 type HistoryData = { ok: boolean; points: TimeseriesPoint[]; };
-type DeviceRow = { device_id: string; nr_serial?: string; };
+type DeviceRow = { device_id: string; nr_serial?: string; nickname?: string; };
 
 const WINDOWS = [
   { value: 240,   label: "4 hrs"  },
