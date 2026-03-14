@@ -42,7 +42,7 @@ export default function RFRunnerOverview() {
       .then(r => r.json())
       .then(j => { if (j.networks) { setNetworks(j.networks); setTs(j.ts_utc); } })
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedDeviceId]);
 
   // Derived stats
   const normalized = networks.map(n => ({ ...n, _band: normalizeBand(n) }));
