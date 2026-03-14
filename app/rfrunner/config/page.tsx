@@ -98,14 +98,19 @@ export default function RFRunnerConfigPage() {
             <p className="text-xs text-gray-500 font-mono">Scanner settings</p>
           </div>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
-        >
-          <Save size={14} />
-          {saving ? "Saving…" : saved ? "Saved ✓" : "Save Changes"}
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
+          </select>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+          >
+            <Save size={14} />
+            {saving ? "Saving…" : saved ? "Saved ✓" : "Save Changes"}
+          </button>
+        </div>
       </div>
 
       <div className="max-w-2xl space-y-4">
