@@ -79,6 +79,10 @@ export default function RFRunnerHistoryPage() {
           </div>
         </div>
 
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
+          </select>
         {/* Range selector */}
         <div className="flex gap-2">
           {(["24h", "7d", "30d"] as const).map(r => (
