@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useDevice } from "@/lib/deviceContext";
 import { Navigation } from "lucide-react";
 
 const TARGET_LABELS: Record<string, string> = {
@@ -30,6 +31,7 @@ function rttColor(ms: number) { return ms < 20 ? "#22c55e" : ms < 80 ? "#60a5fa"
 const sel = { background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" };
 
 export default function RouteRunnerLive() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [targets, setTargets] = useState<string[]>([]);
   const [target, setTarget]   = useState("");
   const [trace, setTrace]     = useState<Trace|null>(null);
@@ -40,7 +42,8 @@ export default function RouteRunnerLive() {
   async function fetchData(t?: string) {
     try {
       const tParam = t !== undefined ? t : target;
-      const url = `/api/routerunner/results${tParam ? `?target=${encodeURIComponent(tParam)}` : ""}`;
+      const did = selectedDeviceId ? `device_id=${selectedDeviceId}&` : "";
+      const url = `/api/routerunner/results?${did}${tParam ? "target="+encodeURIComponent(tParam) : ""}`;
       const j = await fetch(url).then(r => r.json());
       if (!j.traces) return;
       const latest = j.traces?.[0] || null;
@@ -58,6 +61,7 @@ export default function RouteRunnerLive() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { if (target) fetchData(target); }, [target]); // eslint-disable-line
+  useEffect(() => { fetchData(); }, [selectedDeviceId]); // eslint-disable-line
 
   const maxRtt = Math.max(...hops.filter(h => h.rtt_ms != null).map(h => h.rtt_ms!), 1);
   const nextRefresh = Math.max(0, 30 - (tick % 30));

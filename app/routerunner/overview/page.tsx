@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useDevice } from "@/lib/deviceContext";
 import { Route } from "lucide-react";
 
 const TARGET_LABELS: Record<string, string> = {
@@ -43,6 +44,7 @@ function fmtTime(iso: string) { try { return new Date(iso).toLocaleString(); } c
 function rttColor(ms: number) { return ms < 20 ? "#22c55e" : ms < 80 ? "#3b82f6" : ms < 150 ? "#f59e0b" : "#ef4444"; }
 
 export default function RouteRunnerOverview() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [targets, setTargets] = useState<string[]>([]);
   const [target, setTarget]   = useState("");
   const [trace, setTrace]     = useState<Trace|null>(null);
@@ -53,7 +55,8 @@ export default function RouteRunnerOverview() {
   async function fetchData(t?: string) {
     try {
       const tParam = t !== undefined ? t : target;
-      const url = `/api/routerunner/results${tParam ? "?target="+encodeURIComponent(tParam) : ""}`;
+      const did = selectedDeviceId ? `device_id=${selectedDeviceId}&` : "";
+      const url = `/api/routerunner/results?${did}${tParam ? "target="+encodeURIComponent(tParam) : ""}`;
       const j = await fetch(url).then(r => r.json());
       if (!j.traces) return;
       const latest = j.traces?.[0] || null; setTrace(latest);
@@ -71,6 +74,7 @@ export default function RouteRunnerOverview() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { if (target) fetchData(target); }, [target]); // eslint-disable-line
+  useEffect(() => { fetchData(); }, [selectedDeviceId]); // eslint-disable-line
 
   const respondingHops = hops.filter(h => !h.timeout && h.ip);
   const lastHop = respondingHops[respondingHops.length - 1];
@@ -108,11 +112,11 @@ export default function RouteRunnerOverview() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>refresh in {nextRefresh}s</span>
+          <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
+          </select>
           {targets.length > 0 && (
-            <select value={target} onChange={e => setTarget(e.target.value)} style={{
-              background: "#111827", border: "1px solid #374151", borderRadius: 6,
-              color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace",
-            }}>
+            <select value={target} onChange={e => setTarget(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
               {targets.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           )}

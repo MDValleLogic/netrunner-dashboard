@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useDevice } from "@/lib/deviceContext";
 import { Clock } from "lucide-react";
 
 type Trace = { id: number; ts_utc: string; target: string; dest_ip: string; hop_count: number; total_hops: number; };
@@ -8,6 +9,7 @@ function fmtTime(iso: string) { try { return new Date(iso).toLocaleString(); } c
 const sel = { background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" };
 
 export default function RouteRunnerHistory() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [traces, setTraces]   = useState<Trace[]>([]);
   const [targets, setTargets] = useState<string[]>([]);
   const [target, setTarget]   = useState("");
@@ -17,7 +19,8 @@ export default function RouteRunnerHistory() {
     setLoading(true);
     try {
       const tParam = t !== undefined ? t : target;
-      const url = `/api/routerunner/results?limit=50${tParam ? "&target=" + encodeURIComponent(tParam) : ""}`;
+      const did = selectedDeviceId ? `&device_id=${selectedDeviceId}` : "";
+      const url = `/api/routerunner/results?limit=50${tParam ? "&target=" + encodeURIComponent(tParam) : ""}${did}`;
       const j = await fetch(url).then(r => r.json());
       if (!j.traces) return;
       setTraces(j.traces || []);
@@ -27,6 +30,7 @@ export default function RouteRunnerHistory() {
 
   useEffect(() => { fetchHistory(); }, []); // eslint-disable-line
   useEffect(() => { fetchHistory(target); }, [target]); // eslint-disable-line
+  useEffect(() => { fetchHistory(); }, [selectedDeviceId]); // eslint-disable-line
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
@@ -42,6 +46,9 @@ export default function RouteRunnerHistory() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ ...sel, maxWidth: 200 }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
+          </select>
           <select value={target} onChange={e => setTarget(e.target.value)} style={{ ...sel, maxWidth: 240 }}>
             <option value="">All targets</option>
             {targets.map(t => <option key={t} value={t}>{t}</option>)}
