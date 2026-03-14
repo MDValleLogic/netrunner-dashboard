@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const device_id = devices[0].device_id;
 
     const device = await sql`
-      SELECT device_id, nr_serial, vlos_version, ip, hostname, mode, last_seen
+      SELECT device_id, nr_serial, agent_version, last_ip, nickname, status, last_seen
       FROM devices WHERE device_id = ${device_id}
     ` as any[];
 
