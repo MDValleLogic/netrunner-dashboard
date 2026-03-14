@@ -99,6 +99,7 @@ export default function RFRunnerHistoryPage() {
             </button>
           ))}
         </div>
+        </div>
       </div>
 
       <div className="max-w-5xl space-y-4">
