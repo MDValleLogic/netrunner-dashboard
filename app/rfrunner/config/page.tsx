@@ -44,6 +44,7 @@ export default function RFRunnerConfigPage() {
   const [showPsk, setShowPsk]   = useState(false);
 
   useEffect(() => {
+    setConfig(c => ({ ...c, active_ssid: "", active_psk: "", active_enabled: false }));
     fetch(`/api/rfrunner/config${selectedDeviceId ? "?device_id="+selectedDeviceId : ""}`)
       .then(r => r.json())
       .then(j => { if (j.config) setConfig(j.config); })
