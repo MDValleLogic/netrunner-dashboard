@@ -8,12 +8,18 @@ export async function GET(req: NextRequest) {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
     if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-    const devices = await sql`
-      SELECT device_id FROM devices
-      WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
-      ORDER BY last_seen DESC LIMIT 1
-    ` as any[];
-    if (!devices.length) return NextResponse.json({ networks: [] });
+    // Use device_id from query param if provided, otherwise pick most recent for tenant
+    const paramDeviceId = req.nextUrl?.searchParams?.get("device_id") || new URL(req.url).searchParams.get("device_id") || null;
+    let device_id_to_use: string;
+    if (paramDeviceId) {
+      device_id_to_use = paramDeviceId;
+    } else {
+      const devices = await sql`
+        SELECT device_id FROM devices
+        WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
+        ORDER BY last_seen DESC LIMIT 1
+      ` as any[];
+      if (!devices.length) return NextResponse.json({ networks: [] });
     const device_id = devices[0].device_id;
 
     // Get the most recent scan timestamp

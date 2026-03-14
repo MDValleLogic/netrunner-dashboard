@@ -4,6 +4,8 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { useDevice } from "@/lib/deviceContext";
+import DevicePicker from "@/components/DevicePicker";
 
 const Icon = {
   grid: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>),
@@ -22,7 +24,7 @@ const Icon = {
 
 const NAV = [
   { section: "WebRunner", links: [
-    { href: "/dashboard",         label: "Overview",      icon: "grid"     },
+    { href: "/devices/map",       label: "Device Map",    icon: "grid"     },
     { href: "/webrunner/live",    label: "Live Feed",     icon: "activity" },
     { href: "/webrunner/history", label: "History",       icon: "clock"    },
     { href: "/webrunner/config",  label: "Config",        icon: "settings" },
@@ -59,6 +61,7 @@ const NAV = [
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { selectedDevice } = useDevice();
   const userEmail   = session?.user?.email ?? "";
   const userName    = session?.user?.name ?? userEmail.split("@")[0] ?? "User";
   const userInitial = userName[0]?.toUpperCase() ?? "U";
@@ -68,6 +71,10 @@ export default function DashboardShell({ children }: { children: React.ReactNode
       <aside className="vl-sidebar" style={{ display: "flex", flexDirection: "column" }}>
         <div className="vl-sidebar-logo">
           <img src="/vallelogic-logo-white.png" alt="ValleLogic" style={{ width: "85%", maxWidth: 160, margin: "0 auto", display: "block" }} />
+        </div>
+        <div style={{ padding: "8px 14px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)", marginBottom: 4 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", marginBottom: 6 }}>Active Device</div>
+          <DevicePicker />
         </div>
         <nav className="vl-nav" style={{ flex: 1 }}>
           {NAV.map((group) => (

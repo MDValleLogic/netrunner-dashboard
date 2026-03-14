@@ -11,12 +11,18 @@ export async function GET(req: NextRequest) {
     const range = req.nextUrl.searchParams.get("range") ?? "24h";
     const interval = range === "30d" ? "30 days" : range === "7d" ? "7 days" : "24 hours";
 
-    const devices = await sql`
-      SELECT device_id FROM devices
-      WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
-      ORDER BY last_seen DESC LIMIT 1
-    ` as any[];
-    if (!devices.length) return NextResponse.json({ rows: [] });
+    // Use device_id from query param if provided, otherwise pick most recent for tenant
+    const paramDeviceId = req.nextUrl?.searchParams?.get("device_id") || new URL(req.url).searchParams.get("device_id") || null;
+    let device_id_to_use: string;
+    if (paramDeviceId) {
+      device_id_to_use = paramDeviceId;
+    } else {
+      const devices = await sql`
+        SELECT device_id FROM devices
+        WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
+        ORDER BY last_seen DESC LIMIT 1
+      ` as any[];
+      if (!devices.length) return NextResponse.json({ rows: [] });
     const device_id = devices[0].device_id;
 
     const rows = await sql`
