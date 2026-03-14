@@ -55,6 +55,7 @@ function LiveTooltip({ active, payload }: any) {
 }
 
 export default function WebRunnerLivePage() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [windowMinutes, setWindow] = useState(60);
   const [live, setLive]     = useState<LiveResponse | null>(null);
   const [chartData, setChartData] = useState<any[]>([]);
