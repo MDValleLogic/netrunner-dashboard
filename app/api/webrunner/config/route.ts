@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { verifyDevice } from "@/lib/authDevice";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/authOptions";
+import { getToken } from "next-auth/jwt";
+import crypto from "crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,39 +12,38 @@ const SAFE_DEFAULT = {
   timeout_seconds: 10,
 };
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const deviceId = searchParams.get("device_id") || "";
+async function isAuthorized(req: Request): Promise<boolean> {
+  // Check 1: browser JWT session
+  try {
+    const token = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET });
+    if (token) return true;
+  } catch {}
 
-  // Check session (browser dashboard)
-  const session = await getServerSession(authOptions);
-
-  // If no session, check device key (Pi)
-  if (!session) {
-    const deviceKey = req.headers.get("x-device-key") || "";
-    const deviceIdHeader = req.headers.get("x-device-id") || "";
-    
-    if (!deviceKey || !deviceIdHeader) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
-
-    // Verify key against DB directly
-    const crypto = await import("crypto");
+  // Check 2: device key
+  const deviceKey = req.headers.get("x-device-key") || "";
+  const deviceId  = req.headers.get("x-device-id") || "";
+  if (deviceKey && deviceId) {
     const hash = crypto.createHash("sha256").update(deviceKey).digest("hex");
-    
     const rows = await sql`
-      SELECT device_id FROM devices 
-      WHERE device_id = ${deviceIdHeader} 
+      SELECT device_id FROM devices
+      WHERE device_id = ${deviceId}
         AND device_key_hash = ${hash}
         AND status = 'claimed'
       LIMIT 1
     ` as any[];
-
-    if (!rows.length) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
+    if (rows.length) return true;
   }
 
+  return false;
+}
+
+export async function GET(req: Request) {
+  if (!await isAuthorized(req)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const deviceId = searchParams.get("device_id") || "";
   if (!deviceId) return NextResponse.json({ ok: true, config: SAFE_DEFAULT });
 
   try {
@@ -72,8 +70,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const token = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET });
+  if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   let body: any;
   try { body = await req.json(); } catch {
