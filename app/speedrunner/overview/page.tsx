@@ -92,7 +92,7 @@ export default function SpeedRunnerOverview() {
         <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
             {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
           </select>
-          <span style={ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }>refresh in {nextRefresh}s</span>
+          <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>refresh in {nextRefresh}s</span>
       </div>
 
       <div className="max-w-5xl space-y-4">
