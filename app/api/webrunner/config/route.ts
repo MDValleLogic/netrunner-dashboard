@@ -14,15 +14,36 @@ const SAFE_DEFAULT = {
 };
 
 export async function GET(req: Request) {
-  // Allow both browser session (dashboard) and device key auth (Pi)
-  const session = await getServerSession(authOptions);
   const { searchParams } = new URL(req.url);
   const deviceId = searchParams.get("device_id") || "";
 
+  // Check session (browser dashboard)
+  const session = await getServerSession(authOptions);
+
+  // If no session, check device key (Pi)
   if (!session) {
-    // Must be a Pi — verify device key
-    const auth = await verifyDevice(req);
-    if (!auth.ok) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    const deviceKey = req.headers.get("x-device-key") || "";
+    const deviceIdHeader = req.headers.get("x-device-id") || "";
+    
+    if (!deviceKey || !deviceIdHeader) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+
+    // Verify key against DB directly
+    const crypto = await import("crypto");
+    const hash = crypto.createHash("sha256").update(deviceKey).digest("hex");
+    
+    const rows = await sql`
+      SELECT device_id FROM devices 
+      WHERE device_id = ${deviceIdHeader} 
+        AND device_key_hash = ${hash}
+        AND status = 'claimed'
+      LIMIT 1
+    ` as any[];
+
+    if (!rows.length) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
   }
 
   if (!deviceId) return NextResponse.json({ ok: true, config: SAFE_DEFAULT });
