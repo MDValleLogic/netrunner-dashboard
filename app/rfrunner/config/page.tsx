@@ -49,7 +49,7 @@ export default function RFRunnerConfigPage() {
       .then(j => { if (j.config) setConfig(j.config); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedDeviceId]);
 
   async function handleSave() {
     setSaving(true);
@@ -59,7 +59,7 @@ export default function RFRunnerConfigPage() {
       const res = await fetch("/api/rfrunner/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
+        body: JSON.stringify({ ...config, device_id: selectedDeviceId }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Save failed");
