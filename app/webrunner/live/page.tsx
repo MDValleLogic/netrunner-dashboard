@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useDevice } from "@/lib/deviceContext";
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 import { Activity } from "lucide-react";
 
@@ -64,8 +65,8 @@ export default function WebRunnerLivePage() {
     try {
       setErr("");
       const [lR, tR] = await Promise.all([
-        fetch(`/api/webrunner/live?window_minutes=${windowMinutes}&limit=100`),
-        fetch(`/api/webrunner/timeseries?window_minutes=${windowMinutes}&bucket_seconds=60`),
+        fetch(`/api/webrunner/live?window_minutes=${windowMinutes}&limit=100${selectedDeviceId ? "&device_id="+selectedDeviceId : ""}`),
+        fetch(`/api/webrunner/timeseries?window_minutes=${windowMinutes}&bucket_seconds=60${selectedDeviceId ? "&device_id="+selectedDeviceId : ""}`),
       ]);
       const lJ = await lR.json();
       const tJ = await tR.json();
@@ -85,10 +86,11 @@ export default function WebRunnerLivePage() {
   useEffect(() => {
     fetchAll();
     const poll = setInterval(fetchAll, 5_000);
+    return () => clearInterval(poll);
     const countdown = setInterval(() => setTick(t => t + 1), 1_000);
     return () => { clearInterval(poll); clearInterval(countdown); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [windowMinutes]);
+  }, [windowMinutes, selectedDeviceId]);
 
   const online = isOnline(live?.device?.last_seen);
   const liveStats = useMemo(() => {
@@ -123,6 +125,9 @@ export default function WebRunnerLivePage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>refresh in {nextRefresh}s</span>
+          <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
+          </select>
           <select value={windowMinutes} onChange={e => setWindow(Number(e.target.value))} style={{
             background: "#111827", border: "1px solid #374151", borderRadius: 6,
             color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace",
@@ -168,7 +173,7 @@ export default function WebRunnerLivePage() {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
                 {[
-                  { label: "Device ID",  value: live?.device?.nr_serial || live?.device?.device_id || "—" },
+                  { label: "Device",     value: live?.device?.nr_serial || live?.device?.device_id || "—" },
                   { label: "IP Address", value: live?.device?.ip || "—" },
                   { label: "Mode",       value: live?.device?.mode || "—" },
                   { label: "Last Seen",  value: fmtTime(live?.device?.last_seen) },

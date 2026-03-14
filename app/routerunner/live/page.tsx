@@ -82,6 +82,9 @@ export default function RouteRunnerLive() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>refresh in {nextRefresh}s</span>
+          <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ ...sel, maxWidth: 200 }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
+          </select>
           {targets.length > 0 && (
             <select value={target} onChange={e => setTarget(e.target.value)} style={{ ...sel, maxWidth: 260 }}>
               {targets.map(t => <option key={t} value={t}>{targetLabel(t)}</option>)}
