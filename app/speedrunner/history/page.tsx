@@ -1,8 +1,8 @@
 "use client";
+import { useDevice } from "@/lib/deviceContext";
 import { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
 
-const DEVICE_ID = "pi-403c60f1-2557-408f-a3c8-ca7acaf034f5";
 type Result = { id: number; ts_utc: string; region: string; region_city: string; download_mbps: number|null; upload_mbps: number|null; ping_ms: number|null; jitter_ms: number|null; isp: string|null; };
 type RegionOption = { region: string; city: string };
 const REGION_META: Record<string, string> = { "Northeast US": "🗽", "Southeast US": "🌴", "Midwest US": "🌽", "West Coast US": "🌉", "Europe": "🏰", "Asia Pacific": "🗼" };
@@ -86,6 +86,7 @@ function LineChart({ data, metric, label, unit, height = 160 }: ChartProps) {
 const sel = { background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" };
 
 export default function SpeedRunnerHistory() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [results, setResults] = useState<Result[]>([]);
   const [regions, setRegions] = useState<RegionOption[]>([]);
   const [region, setRegion]   = useState("");
@@ -96,7 +97,7 @@ export default function SpeedRunnerHistory() {
     setLoading(true);
     try {
       const rParam = r !== undefined ? r : region;
-      const url = `/api/speedrunner/results?device_id=${DEVICE_ID}&limit=100${rParam ? `&region=${encodeURIComponent(rParam)}` : ""}`;
+      const url = `/api/speedrunner/results?device_id=${selectedDeviceId || ""}&limit=100${rParam ? `&region=${encodeURIComponent(rParam)}` : ""}`;
       const j = await fetch(url).then(r => r.json());
       if (j.ok) { setResults(j.history || []); setRegions(j.regions || []); }
     } finally { setLoading(false); }
@@ -104,6 +105,7 @@ export default function SpeedRunnerHistory() {
 
   useEffect(() => { fetchData(); }, []); // eslint-disable-line
   useEffect(() => { fetchData(region); }, [region]); // eslint-disable-line
+  useEffect(() => { fetchData(); }, [selectedDeviceId]); // eslint-disable-line
 
   const chartData = results.filter(r => REGION_META[r.region]);
 
@@ -134,6 +136,9 @@ export default function SpeedRunnerHistory() {
           <select value={region} onChange={e => setRegion(e.target.value)} style={{ ...sel, maxWidth: 220 }}>
             <option value="">All regions</option>
             {regions.map(r => <option key={r.region} value={r.region}>{REGION_META[r.region] || "🌐"} {r.region}</option>)}
+          </select>
+          <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
           </select>
           <button onClick={() => fetchData(region)} style={{ background: "transparent", border: "1px solid #374151", borderRadius: 6, color: "#9ca3af", padding: "6px 12px", fontSize: 13, cursor: "pointer" }}>↻</button>
         </div>

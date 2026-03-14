@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useDevice } from "@/lib/deviceContext";
 import { Zap } from "lucide-react";
 
-const DEVICE_ID = "pi-403c60f1-2557-408f-a3c8-ca7acaf034f5";
 type Result = { id: number; ts_utc: string; region: string; region_city: string; download_mbps: number|null; upload_mbps: number|null; ping_ms: number|null; jitter_ms: number|null; isp: string|null; server_name: string|null; server_city: string|null; result_url: string|null; };
 const REGION_META: Record<string, string> = { "Northeast US": "🗽", "Southeast US": "🌴", "Midwest US": "🌽", "West Coast US": "🌉", "Europe": "🏰", "Asia Pacific": "🗼" };
 
@@ -18,13 +18,14 @@ function pingColor(ms: number|null) {
 function fmtTime(iso: string) { try { return new Date(iso).toLocaleString(); } catch { return iso; } }
 
 export default function SpeedRunnerLive() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
 
   async function fetchData() {
     try {
-      const j = await fetch(`/api/speedrunner/results?device_id=${DEVICE_ID}&limit=12`).then(r => r.json());
+      const j = await fetch(`/api/speedrunner/results?device_id=${selectedDeviceId || ""}&limit=12`).then(r => r.json());
       if (j.ok) setResults(j.history || []);
     } finally { setLoading(false); }
   }
@@ -51,7 +52,10 @@ export default function SpeedRunnerLive() {
             <p className="text-xs text-gray-500 font-mono">Most recent speed test results</p>
           </div>
         </div>
-        <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>refresh in {nextRefresh}s</span>
+        <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
+          </select>
+          <span style={ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }>refresh in {nextRefresh}s</span>
       </div>
 
       <div className="max-w-5xl">

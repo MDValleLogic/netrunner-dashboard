@@ -1,4 +1,5 @@
 "use client";
+import { useDevice } from "@/lib/deviceContext";
 import { useEffect, useState } from "react";
 import { Zap } from "lucide-react";
 
@@ -33,13 +34,13 @@ function speedBar(mbps: number|null, max: number, color: string) {
 function fmtTime(iso: string) { try { return new Date(iso).toLocaleString(); } catch { return iso; } }
 
 export default function SpeedRunnerOverview() {
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [regions, setRegions]   = useState<RegionResult[]>([]);
   const [loading, setLoading]   = useState(true);
   const [tick, setTick]         = useState(0);
-  const [deviceId, setDeviceId] = useState("");
 
   async function fetchData(devId?: string) {
-    const id = devId || deviceId;
+    const id = devId || selectedDeviceId;
     if (!id) return;
     try {
       const j = await fetch(`/api/speedrunner/results?device_id=${id}`).then(r => r.json());
@@ -48,18 +49,10 @@ export default function SpeedRunnerOverview() {
   }
 
   useEffect(() => {
-    fetch("/api/devices/list")
-      .then(r => r.json())
-      .then(j => {
-        if (j?.ok && j.devices?.length > 0) {
-          const id = j.devices[0].device_id;
-          setDeviceId(id);
-          fetchData(id);
-        } else {
-          setLoading(false);
-        }
-      }).catch(() => setLoading(false));
+    if (selectedDeviceId) fetchData(selectedDeviceId);
+  }, [selectedDeviceId]); // eslint-disable-line
 
+  useEffect(() => {
     const p = setInterval(() => fetchData(), 60_000);
     const c = setInterval(() => setTick(t => t + 1), 1000);
     return () => { clearInterval(p); clearInterval(c); };
@@ -96,7 +89,10 @@ export default function SpeedRunnerOverview() {
             <p className="text-xs text-gray-500 font-mono">Speed to every region of the internet</p>
           </div>
         </div>
-        <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>refresh in {nextRefresh}s</span>
+        <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+            {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
+          </select>
+          <span style={ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }>refresh in {nextRefresh}s</span>
       </div>
 
       <div className="max-w-5xl space-y-4">
