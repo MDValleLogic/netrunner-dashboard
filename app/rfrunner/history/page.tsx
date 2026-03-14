@@ -51,8 +51,8 @@ export default function RFRunnerHistoryPage() {
       .then(j => setRows(j.rows ?? []))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [range]);
-  useEffect(() => { fetchData(); }, [selectedDeviceId]); // eslint-disable-line
+  }, [range, selectedDeviceId]);
+
 
   // Chart data — oldest first for left-to-right time flow
   const chartData = [...rows].reverse().map(r => ({
