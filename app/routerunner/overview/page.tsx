@@ -45,7 +45,7 @@ function rttColor(ms: number) { return ms < 20 ? "#22c55e" : ms < 80 ? "#3b82f6"
 
 export default function RouteRunnerOverview() {
   const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
-  const [targets, setTargets] = useState<string[]>([]);
+  const [targets, setTargets] = useState<string[]>(['8.8.8.8', '1.1.1.1']);
   const [target, setTarget]   = useState("");
   const [trace, setTrace]     = useState<Trace|null>(null);
   const [hops, setHops]       = useState<Hop[]>([]);

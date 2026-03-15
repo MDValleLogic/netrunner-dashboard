@@ -214,7 +214,21 @@ export default function WebRunnerLive() {
       <div className="max-w-6xl mb-6">
         <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <img src="/assets/NetRunner_White.png" alt="NetRunner" style={{ width: 80, opacity: 0.9 }} />
+            <svg width="72" height="40" viewBox="0 0 72 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="1" y="10" width="70" height="20" rx="5" fill="#0f172a" stroke="#334155" strokeWidth="1.5"/>
+              <rect x="4" y="13" width="64" height="14" rx="3" fill="#1e293b"/>
+              <circle cx="14" cy="20" r="4" fill="#0ea5e9" opacity="0.9"/>
+              <circle cx="14" cy="20" r="2" fill="#38bdf8"/>
+              <rect x="24" y="17" width="28" height="2" rx="1" fill="#334155"/>
+              <rect x="24" y="21" width="20" height="2" rx="1" fill="#334155"/>
+              <rect x="58" y="16" width="4" height="8" rx="1" fill="#22c55e" opacity="0.8"/>
+              <circle cx="8" cy="10" r="2" fill="#475569"/>
+              <circle cx="8" cy="30" r="2" fill="#475569"/>
+              <circle cx="64" cy="10" r="2" fill="#475569"/>
+              <circle cx="64" cy="30" r="2" fill="#475569"/>
+              <rect x="30" y="1" width="12" height="8" rx="1" fill="#0f172a" stroke="#334155" strokeWidth="1"/>
+              <circle cx="36" cy="5" r="1.5" fill="#0ea5e9"/>
+            </svg>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb", fontFamily: "monospace" }}>NetRunner Appliance</div>
               <div style={{ fontSize: 11, color: "#6b7280" }}>Edge monitoring appliance</div>
