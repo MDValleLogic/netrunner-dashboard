@@ -20,10 +20,14 @@ const Icon = {
   wifi: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 5.5a9.5 9.5 0 0 1 14 0"/><path d="M3.5 8a6 6 0 0 1 9 0"/><path d="M6 10.5a3 3 0 0 1 4 0"/><circle cx="8" cy="13" r="1" fill="currentColor" stroke="none"/></svg>),
   shield: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5L2 4v4c0 3.5 2.5 6 6 7 3.5-1 6-3.5 6-7V4L8 1.5z"/></svg>),
   map: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 2l4 2v10l-4-2-4 2-4-2V2l4 2 4-2z"/><line x1="6" y1="4" x2="6" y2="14"/><line x1="10" y1="2" x2="10" y2="12"/></svg>),
+  map: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 2l4 2v10l-4-2-4 2-4-2V2l4 2 4-2z"/><line x1="6" y1="4" x2="6" y2="14"/><line x1="10" y1="2" x2="10" y2="12"/></svg>),
   terminal: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="2" width="14" height="12" rx="2"/><polyline points="4,6 7,8 4,10"/><line x1="8" y1="10" x2="12" y2="10"/></svg>),
 };
 
 const NAV = [
+  { section: "NetRunner NOC", links: [
+    { href: "/devices/map", label: "NOC View", icon: "map" },
+  ]},
   { section: "WebRunner", links: [
     { href: "/webrunner/overview", label: "Overview",      icon: "grid"     },
     { href: "/webrunner/live",    label: "Live Feed",     icon: "activity" },
@@ -73,10 +77,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
         <div className="vl-sidebar-logo">
           <img src="/vallelogic-logo-white.png" alt="ValleLogic" style={{ width: "85%", maxWidth: 160, margin: "0 auto", display: "block" }} />
         </div>
-        <div style={{ padding: "8px 14px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)", marginBottom: 4 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", marginBottom: 6 }}>Active Device</div>
-          <DevicePicker />
-        </div>
+
         <nav className="vl-nav" style={{ flex: 1 }}>
           {NAV.map((group) => (
             <div key={group.section}>
