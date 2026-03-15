@@ -17,6 +17,7 @@ export async function middleware(req: NextRequest) {
   if (
     pathname.startsWith("/v1/") ||
     pathname === "/api/heartbeat" ||
+    pathname.startsWith("/api/devices/heartbeat") ||
     pathname === "/api/device-config" ||
     pathname === "/api/measurements/ingest" ||
     pathname.startsWith("/api/routerunner") ||
