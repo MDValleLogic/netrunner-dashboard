@@ -115,11 +115,11 @@ export default function DevicesPage() {
                 <div className="flex items-center gap-8 text-sm">
                   <div>
                     <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">ValleLogic OS</div>
-                    <div className="text-slate-300">{d.vlos_version || "—"}</div>
+                    <div className="text-slate-300">{d.agent_version || d.vlos_version || "—"}</div>
                   </div>
                   <div>
                     <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">IP Address</div>
-                    <div className="text-slate-300 font-mono">{d.ip || "—"}</div>
+                    <div className="text-slate-300 font-mono">{d.last_ip || d.ip || "—"}</div>
                   </div>
                   <div>
                     <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">Last Seen</div>
