@@ -19,6 +19,7 @@ const Icon = {
   storm: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 6.5A4.5 4.5 0 0 1 11.5 5a3 3 0 0 1-.5 6H4a3 3 0 0 1-1-5.8"/><path d="M7 10l-1.5 3M9 10l-1.5 3"/></svg>),
   wifi: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 5.5a9.5 9.5 0 0 1 14 0"/><path d="M3.5 8a6 6 0 0 1 9 0"/><path d="M6 10.5a3 3 0 0 1 4 0"/><circle cx="8" cy="13" r="1" fill="currentColor" stroke="none"/></svg>),
   shield: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 1.5L2 4v4c0 3.5 2.5 6 6 7 3.5-1 6-3.5 6-7V4L8 1.5z"/></svg>),
+  map: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 2l4 2v10l-4-2-4 2-4-2V2l4 2 4-2z"/><line x1="6" y1="4" x2="6" y2="14"/><line x1="10" y1="2" x2="10" y2="12"/></svg>),
   terminal: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="2" width="14" height="12" rx="2"/><polyline points="4,6 7,8 4,10"/><line x1="8" y1="10" x2="12" y2="10"/></svg>),
 };
 
@@ -53,7 +54,6 @@ const NAV = [
     { href: "/commandrunner", label: "CommandRunner", icon: "terminal", phase: "P3", disabled: true },
   ]},
   { section: "System", links: [
-    { href: "/devices/map",      label: "Device Map",   icon: "grid"  },
     { href: "/settings/devices", label: "Device Setup", icon: "cpu"   },
     { href: "/settings/users",   label: "Users",        icon: "users" },
   ]},
