@@ -5,7 +5,7 @@ import { useDevice } from "@/lib/deviceContext";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 
 type LiveMeasurement = { id: number; ts_utc: string; url: string; dns_ms: number | null; http_ms: number | null; http_status: number | null; http_err: string | null; success: boolean; device_id: string; };
-type LiveDevice = { device_id: string; nr_serial: string; tenant_id: string | null; };
+type LiveDevice = { device_id: string; nr_serial: string; tenant_id: string | null; last_seen?: string; };
 type LiveData = { ok: boolean; device_id: string; nr_serial: string; device: LiveDevice | null; measurements: LiveMeasurement[]; fetched_at_utc: string; };
 type TsBucket = { bucket: string; avg_ms: number | null; };
 
