@@ -236,7 +236,7 @@ export default function WebRunnerLive() {
           </div>
           <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
             {[
-              { label: "Device", value: live?.nr_serial || "—" },
+              { label: "Device", value: (live as any)?.nickname || live?.nr_serial || "—" },
               { label: "Avg Latency", value: fmtMs(avgMs), color: latencyColor(avgMs) },
               { label: "Samples", value: String(live?.measurements?.length || 0) },
               { label: "Last Seen", value: live?.device?.last_seen ? fmtTime(live.device.last_seen) : "—" },
