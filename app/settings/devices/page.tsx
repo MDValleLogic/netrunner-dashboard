@@ -127,7 +127,7 @@ export default function DevicesPage() {
                   </div>
                   <div>
                     <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">Last Seen</div>
-                    <div className="text-slate-300">{timeAgo(d.last_seen)}</div>
+                    <div className="text-slate-300">{timeAgo(d.last_seen || '')}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${online ? "bg-green-400" : "bg-slate-600"}`} />
