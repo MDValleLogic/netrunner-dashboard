@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MapPin, Edit2, X, List } from "lucide-react";
@@ -345,6 +346,7 @@ export default function DevicesMapPage() {
         display: "flex", alignItems: "center", justifyContent: "space-between"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Link href="/webrunner/overview" style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 6, background: "rgba(255,255,255,0.05)", border: "1px solid #374151", textDecoration: "none", color: "#9ca3af", fontSize: 12 }}>← Dashboard</Link>
           <MapPin size={18} style={{ color: "#3b82f6" }} />
           <span style={{ fontSize: 15, fontWeight: 700, color: "#f9fafb" }}>Device Map</span>
           <div style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>
