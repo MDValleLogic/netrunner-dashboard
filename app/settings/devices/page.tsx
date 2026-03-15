@@ -106,7 +106,7 @@ export default function DevicesPage() {
       ) : (
         <div className="space-y-3">
           {devices.map(d => {
-            const online = (Date.now() - new Date(d.last_seen).getTime()) < 5 * 60 * 1000;
+            const online = d.last_seen ? (Date.now() - new Date(d.last_seen).getTime()) < 5 * 60 * 1000 : false;
             return (
               <div key={d.device_id} className="bg-slate-800 border border-slate-700 rounded-xl p-5 flex items-center justify-between">
                 <div className="flex items-center gap-4">
