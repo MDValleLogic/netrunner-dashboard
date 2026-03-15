@@ -1,120 +1,195 @@
 "use client";
-
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { Activity, Wifi, WifiOff } from "lucide-react";
 import { useDevice } from "@/lib/deviceContext";
-import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
-import { Activity } from "lucide-react";
+import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 
-type LiveMeasurement = {
-  id: string | number;
-  device_id: string;
-  nr_serial: string;
-  ts_utc: string;
-  url: string;
-  http_ms: number | null;
-  http_err: string | null;
-  success: boolean;
-};
-type LiveDevice = {
-  device_id: string; nr_serial: string; tenant_id: string | null;
-  claimed: boolean; hostname: string | null; ip: string | null;
-  mode: string | null; last_seen: string | null;
-};
-type LiveResponse = {
-  ok: boolean; device_id: string; nr_serial: string;
-  window_minutes: number; limit: number;
-  device: LiveDevice | null; measurements: LiveMeasurement[]; fetched_at_utc: string;
-};
+type LiveMeasurement = { id: number; ts_utc: string; url: string; dns_ms: number | null; http_ms: number | null; http_status: number | null; http_err: string | null; success: boolean; device_id: string; };
+type LiveDevice = { device_id: string; nr_serial: string; tenant_id: string | null; };
+type LiveData = { ok: boolean; device_id: string; nr_serial: string; device: LiveDevice | null; measurements: LiveMeasurement[]; fetched_at_utc: string; };
+type TsBucket = { bucket: string; avg_ms: number | null; };
 
-function fmtTime(iso?: string | null) {
-  if (!iso) return "—";
-  try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
-  catch { return ""; }
+function fmtMs(ms: number | null) { return ms == null ? "—" : ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(1)}s`; }
+function fmtTime(iso: string) { try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); } catch { return ""; } }
+function isOnline(last: string | undefined) { if (!last) return false; return (Date.now() - new Date(last).getTime()) < 90_000; }
+function latencyColor(ms: number | null) {
+  if (!ms) return "#6b7280";
+  if (ms < 100) return "#22c55e";
+  if (ms < 300) return "#60a5fa";
+  if (ms < 800) return "#f59e0b";
+  return "#ef4444";
 }
-function fmtMs(val: number | null | undefined): string {
-  if (val == null || isNaN(val)) return "—";
-  return val < 1000 ? `${Math.round(val)}ms` : `${(val / 1000).toFixed(2)}s`;
-}
-function isOnline(lastSeen?: string | null): boolean {
-  if (!lastSeen) return false;
-  return Date.now() - new Date(lastSeen).getTime() < 10 * 60 * 1000;
+function trendArrow(data: number[]) {
+  if (data.length < 4) return { arrow: "→", color: "#6b7280" };
+  const recent = data.slice(-3).reduce((a, b) => a + b, 0) / 3;
+  const older = data.slice(0, 3).reduce((a, b) => a + b, 0) / 3;
+  const diff = recent - older;
+  if (diff > 20) return { arrow: "↑", color: "#ef4444" };
+  if (diff < -20) return { arrow: "↓", color: "#22c55e" };
+  return { arrow: "→", color: "#6b7280" };
 }
 
-function LiveTooltip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
+const TIME_WINDOWS = [
+  { label: "15 min", value: 15 },
+  { label: "30 min", value: 30 },
+  { label: "1 hr",   value: 60 },
+  { label: "3 hrs",  value: 180 },
+];
+
+const sel = { background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" };
+
+function SparkLine({ data, color }: { data: number[]; color: string }) {
+  const pts = data.map((v, i) => ({ v }));
   return (
-    <div style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, padding: "10px 14px", fontSize: 12, fontFamily: "monospace", minWidth: 160 }}>
-      {payload.map((e: any) => (
-        <div key={e.dataKey} style={{ color: e.color, display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 2 }}>
-          <span style={{ color: "#9ca3af" }}>{e.name}</span>
-          <strong>{e.name === "avg_latency_ms" ? fmtMs(e.value) : e.value}</strong>
+    <ResponsiveContainer width="100%" height={40}>
+      <LineChart data={pts}>
+        <Line type="monotone" dataKey="v" stroke={color} strokeWidth={2} dot={false} isAnimationActive={false} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+function UrlCard({ url, measurements }: { url: string; measurements: LiveMeasurement[] }) {
+  const latest = measurements[0];
+  const httpVals = measurements.map(m => m.http_ms).filter((v): v is number => v != null);
+  const dnsVals = measurements.map(m => m.dns_ms).filter((v): v is number => v != null);
+  const avgHttp = httpVals.length ? Math.round(httpVals.reduce((a, b) => a + b, 0) / httpVals.length) : null;
+  const avgDns = dnsVals.length ? Math.round(dnsVals.reduce((a, b) => a + b, 0) / dnsVals.length) : null;
+  const successRate = measurements.length ? Math.round((measurements.filter(m => m.success).length / measurements.length) * 100) : 100;
+  const { arrow, color: arrowColor } = trendArrow(httpVals.slice().reverse());
+  const sparkData = httpVals.slice().reverse();
+  const currentMs = latest?.http_ms ?? null;
+  const isOk = latest?.success !== false;
+  const hostname = (() => { try { return new URL(url).hostname; } catch { return url; } })();
+
+  const statusColor = !isOk ? "#ef4444" : currentMs && currentMs > 800 ? "#f59e0b" : "#22c55e";
+  const statusLabel = !isOk ? "FAIL" : currentMs && currentMs > 800 ? "SLOW" : "OK";
+
+  return (
+    <div style={{
+      background: "#0f172a",
+      border: `1px solid ${!isOk ? "#ef444440" : "#1e293b"}`,
+      borderRadius: 12,
+      padding: "20px 24px",
+      display: "flex",
+      flexDirection: "column",
+      gap: 12,
+      minWidth: 0,
+    }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#e5e7eb", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {hostname}
+          </div>
+          <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2, fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {url}
+          </div>
         </div>
-      ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 8 }}>
+          <span style={{ fontSize: 18, fontWeight: 700, color: arrowColor, fontFamily: "monospace" }}>{arrow}</span>
+          <span style={{
+            padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700,
+            fontFamily: "monospace", background: `${statusColor}20`, color: statusColor,
+            border: `1px solid ${statusColor}40`
+          }}>{statusLabel}</span>
+        </div>
+      </div>
+
+      {/* Main metric */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <span style={{ fontSize: 36, fontWeight: 700, fontFamily: "monospace", color: latencyColor(currentMs) }}>
+          {fmtMs(currentMs)}
+        </span>
+        <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>HTTP</span>
+      </div>
+
+      {/* Sparkline */}
+      {sparkData.length > 1 && (
+        <div style={{ margin: "0 -4px" }}>
+          <SparkLine data={sparkData} color={latencyColor(avgHttp)} />
+        </div>
+      )}
+
+      {/* Stats row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+        {[
+          { label: "DNS", value: fmtMs(avgDns) },
+          { label: "Avg HTTP", value: fmtMs(avgHttp) },
+          { label: "Success", value: `${successRate}%`, color: successRate < 95 ? "#ef4444" : successRate < 99 ? "#f59e0b" : "#22c55e" },
+        ].map(stat => (
+          <div key={stat.label} style={{ background: "#111827", borderRadius: 6, padding: "8px 10px" }}>
+            <div style={{ fontSize: 9, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{stat.label}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "monospace", color: stat.color || "#e5e7eb" }}>{stat.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Last tested */}
+      {latest && (
+        <div style={{ fontSize: 10, color: "#4b5563", fontFamily: "monospace" }}>
+          Last tested {fmtTime(latest.ts_utc)}
+          {latest.http_status && <span style={{ marginLeft: 8, color: "#374151" }}>HTTP {latest.http_status}</span>}
+        </div>
+      )}
     </div>
   );
 }
 
-export default function WebRunnerLivePage() {
+export default function WebRunnerLive() {
   const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
-  const [windowMinutes, setWindow] = useState(60);
-  const [live, setLive]     = useState<LiveResponse | null>(null);
-  const [chartData, setChartData] = useState<any[]>([]);
-  const [err, setErr]       = useState("");
-  const [tick, setTick]     = useState(0);
+  const [live, setLive] = useState<LiveData | null>(null);
+  const [timeseries, setTimeseries] = useState<TsBucket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [windowMinutes, setWindowMinutes] = useState(60);
+  const [tick, setTick] = useState(0);
 
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
+    if (!selectedDeviceId) return;
     try {
-      setErr("");
       const [lR, tR] = await Promise.all([
-        fetch(`/api/webrunner/live?window_minutes=${windowMinutes}&limit=100${selectedDeviceId ? "&device_id="+selectedDeviceId : ""}`),
+        fetch(`/api/webrunner/live?window_minutes=${windowMinutes}&limit=200${selectedDeviceId ? "&device_id="+selectedDeviceId : ""}`),
         fetch(`/api/webrunner/timeseries?window_minutes=${windowMinutes}&bucket_seconds=60${selectedDeviceId ? "&device_id="+selectedDeviceId : ""}`),
       ]);
-      const lJ = await lR.json();
-      const tJ = await tR.json();
+      const [lJ, tJ] = await Promise.all([lR.json(), tR.json()]);
       if (!lJ.measurements) throw new Error("live endpoint failed");
       setLive({ ...lJ, measurements: lJ.measurements.map((m: any) => ({ ...m, success: !m.http_err || m.http_err === "" })) });
-      if (tJ.buckets) {
-        setChartData(tJ.buckets.map((b: any) => ({
-          t: new Date(b.bucket).getTime(),
-          avg_latency_ms: b.avg_ms,
-          fail: b.total - b.success,
-        })));
-      }
-      setTick(0);
-    } catch (e: any) { setErr(e.message || "Unknown error"); }
-  }
+      setTimeseries(tJ.buckets || []);
+    } catch {}
+    finally { setLoading(false); }
+  }, [selectedDeviceId, windowMinutes]);
 
   useEffect(() => {
     fetchAll();
     const poll = setInterval(fetchAll, 5_000);
-    return () => clearInterval(poll);
-    const countdown = setInterval(() => setTick(t => t + 1), 1_000);
-    return () => { clearInterval(poll); clearInterval(countdown); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [windowMinutes, selectedDeviceId]);
+    const t = setInterval(() => setTick(n => n + 1), 1000);
+    return () => { clearInterval(poll); clearInterval(t); };
+  }, [fetchAll]);
 
   const online = isOnline(live?.device?.last_seen);
-  const liveStats = useMemo(() => {
-    const ms = live?.measurements || [];
-    const success = ms.filter(m => m.success);
-    const avgMs = success.length ? Math.round(success.reduce((a, b) => a + (b.http_ms || 0), 0) / success.length) : null;
-    return { total: ms.length, success: success.length, fail: ms.length - success.length, avgMs };
-  }, [live]);
-
   const nextRefresh = Math.max(0, 5 - (tick % 5));
 
-  const statCards = [
-    { label: "Avg Latency", value: fmtMs(liveStats.avgMs), alert: !!(liveStats.avgMs && liveStats.avgMs > 500) },
-    { label: "Samples",     value: String(liveStats.total), alert: false },
-    { label: "Success",     value: String(liveStats.success), alert: false, green: true },
-    { label: "Failures",    value: String(liveStats.fail), alert: liveStats.fail > 0 },
-  ];
+  // Group measurements by URL
+  const urlGroups = useMemo(() => {
+    const ms = live?.measurements || [];
+    const map: Record<string, LiveMeasurement[]> = {};
+    for (const m of ms) {
+      if (!map[m.url]) map[m.url] = [];
+      map[m.url].push(m);
+    }
+    return map;
+  }, [live]);
+
+  const urls = Object.keys(urlGroups);
+
+  // Overall stats
+  const allMs = (live?.measurements || []).filter(m => m.success && m.http_ms != null);
+  const avgMs = allMs.length ? Math.round(allMs.reduce((a, b) => a + (b.http_ms || 0), 0) / allMs.length) : null;
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
-
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 max-w-5xl">
+      <div className="flex items-center justify-between mb-6 max-w-6xl">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
             <Activity size={20} className="text-blue-400" />
@@ -124,155 +199,59 @@ export default function WebRunnerLivePage() {
             <p className="text-xs text-gray-500 font-mono">Real-time measurements · polling every 5s</p>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>refresh in {nextRefresh}s</span>
-          <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}>
+          <select value={selectedDeviceId || ""} onChange={e => setSelectedDeviceId(e.target.value)} style={sel}>
             {devices.map(d => <option key={d.device_id} value={d.device_id}>{d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}</option>)}
           </select>
-          <select value={windowMinutes} onChange={e => setWindow(Number(e.target.value))} style={{
-            background: "#111827", border: "1px solid #374151", borderRadius: 6,
-            color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace",
-          }}>
-            <option value={15}>15 min</option>
-            <option value={60}>1 hr</option>
-            <option value={240}>4 hrs</option>
+          <select value={windowMinutes} onChange={e => setWindowMinutes(Number(e.target.value))} style={sel}>
+            {TIME_WINDOWS.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
           </select>
         </div>
       </div>
 
-      <div className="max-w-5xl space-y-4">
-
-        {err && (
-          <div style={{ padding: "10px 16px", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444", fontSize: 13 }}>
-            ⚠ {err}
-          </div>
-        )}
-
-        {/* Device card */}
-        <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 overflow-hidden">
-          <div style={{ display: "flex", alignItems: "stretch", minHeight: 120 }}>
-            <div style={{ width: 200, flexShrink: 0, background: "#0f1f3d", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px 20px", position: "relative" }}>
-              <img src="/NetRunner_White.png" alt="NetRunner" style={{ width: "100%", maxWidth: 160, height: "auto", objectFit: "contain", filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.6))" }} />
-              <div style={{ position: "absolute", bottom: 10, left: 12, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase" }}>NetRunner Appliance</div>
+      {/* Device card */}
+      <div className="max-w-6xl mb-6">
+        <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <img src="/assets/NetRunner_White.png" alt="NetRunner" style={{ width: 80, opacity: 0.9 }} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb", fontFamily: "monospace" }}>NetRunner Appliance</div>
+              <div style={{ fontSize: 11, color: "#6b7280" }}>Edge monitoring appliance</div>
             </div>
-            <div style={{ flex: 1, padding: "16px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "#e5e7eb", fontFamily: "monospace", marginBottom: 2 }}>{live?.device?.hostname || "NetRunner Appliance"}</div>
-                  <div style={{ fontSize: 11, color: "#6b7280" }}>Edge monitoring appliance</div>
-                </div>
-                <span style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600,
-                  background: online ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
-                  border: `1px solid ${online ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
-                  color: online ? "#22c55e" : "#ef4444",
-                }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: online ? "#22c55e" : "#ef4444", boxShadow: online ? "0 0 6px #22c55e" : "none" }} />
-                  {online ? "Online" : "Offline"}
-                </span>
+          </div>
+          <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
+            {[
+              { label: "Device", value: live?.nr_serial || "—" },
+              { label: "Avg Latency", value: fmtMs(avgMs), color: latencyColor(avgMs) },
+              { label: "Samples", value: String(live?.measurements?.length || 0) },
+              { label: "Last Seen", value: live?.device?.last_seen ? fmtTime(live.device.last_seen) : "—" },
+            ].map(s => (
+              <div key={s.label}>
+                <div style={{ fontSize: 9, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{s.label}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "monospace", color: s.color || "#e5e7eb" }}>{s.value}</div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-                {[
-                  { label: "Device",     value: live?.device?.nr_serial || live?.device?.device_id || "—" },
-                  { label: "IP Address", value: live?.device?.ip || "—" },
-                  { label: "Mode",       value: live?.device?.mode || "—" },
-                  { label: "Last Seen",  value: fmtTime(live?.device?.last_seen) },
-                ].map(f => (
-                  <div key={f.label}>
-                    <div style={{ fontSize: 9, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>{f.label}</div>
-                    <div style={{ fontFamily: "monospace", fontSize: 12, color: "#9ca3af" }}>{f.value}</div>
-                  </div>
-                ))}
-              </div>
+            ))}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 20, background: online ? "#22c55e15" : "#ef444415", border: `1px solid ${online ? "#22c55e40" : "#ef444440"}` }}>
+              {online ? <Wifi size={14} className="text-green-400" /> : <WifiOff size={14} className="text-red-400" />}
+              <span style={{ fontSize: 12, fontWeight: 600, color: online ? "#22c55e" : "#ef4444" }}>{online ? "Online" : "Offline"}</span>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Stat cards */}
-        <div className="grid grid-cols-4 gap-3">
-          {statCards.map(({ label, value, alert, green }) => (
-            <div key={label} className={`rounded-lg border px-4 py-4 bg-gray-900/60 ${alert ? "border-red-700/60" : "border-gray-700/60"}`}>
-              <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-2">{label}</div>
-              <div style={{ fontSize: 24, fontWeight: 700, fontFamily: "monospace", color: alert ? "#ef4444" : (green as any) ? "#22c55e" : "#ffffff" }}>{value}</div>
-            </div>
+      {/* URL Cards */}
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "48px 0", color: "#6b7280" }}>Loading…</div>
+      ) : urls.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "48px 0", color: "#6b7280" }}>No measurements yet — waiting for next test cycle</div>
+      ) : (
+        <div className="max-w-6xl" style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(urls.length, 3)}, 1fr)`, gap: 16 }}>
+          {urls.map(url => (
+            <UrlCard key={url} url={url} measurements={urlGroups[url]} />
           ))}
         </div>
-
-        {/* Latency chart */}
-        <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>Latency Timeline</span>
-            <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>avg per 60s bucket</span>
-          </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
-              <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]}
-                tickFormatter={v => new Date(Number(v)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                tick={{ fill: "#6b7280", fontSize: 10, fontFamily: "monospace" }}
-                axisLine={{ stroke: "#374151" }} tickLine={false} />
-              <YAxis tick={{ fill: "#6b7280", fontSize: 10, fontFamily: "monospace" }}
-                axisLine={false} tickLine={false} tickFormatter={v => `${v}ms`} width={52} />
-              <Tooltip content={<LiveTooltip />} />
-              <Line type="monotone" dataKey="avg_latency_ms" name="avg_latency_ms"
-                stroke="#3b82f6" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-              <Line type="monotone" dataKey="fail" name="fail"
-                stroke="#ef4444" strokeWidth={1} strokeDasharray="3 3" dot={false} isAnimationActive={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Measurements table */}
-        <div className="rounded-lg border border-gray-700/60 bg-gray-900/60">
-          <div className="flex items-center justify-between p-4 border-b border-gray-700/60">
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>Latest Measurements</span>
-            <span style={{ fontSize: 11, color: "#6b7280", fontFamily: "monospace" }}>{live?.measurements?.length || 0} records</span>
-          </div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid #1f2937" }}>
-                  {["Time", "URL", "HTTP ms", "Status", "Error"].map(h => (
-                    <th key={h} style={{ padding: "8px 16px", textAlign: "left", fontSize: 10, fontFamily: "monospace", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(live?.measurements || []).length === 0 ? (
-                  <tr><td colSpan={5} style={{ padding: "32px 16px", textAlign: "center", color: "#6b7280", fontSize: 13 }}>No measurements in window</td></tr>
-                ) : (
-                  (live?.measurements || []).map(m => (
-                    <tr key={String(m.id)} style={{ borderBottom: "1px solid #111827" }}>
-                      <td style={{ padding: "8px 16px", fontFamily: "monospace", fontSize: 12, color: "#9ca3af" }}>{fmtTime(m.ts_utc)}</td>
-                      <td style={{ padding: "8px 16px", fontFamily: "monospace", fontSize: 12, color: "#d1d5db", maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {m.url.replace(/^https?:\/\//, "")}
-                      </td>
-                      <td style={{ padding: "8px 16px", fontFamily: "monospace", fontSize: 12, textAlign: "right", color: m.http_ms && m.http_ms > 500 ? "#ef4444" : "#9ca3af" }}>
-                        {fmtMs(m.http_ms)}
-                      </td>
-                      <td style={{ padding: "8px 16px" }}>
-                        <span style={{
-                          display: "inline-flex", alignItems: "center", gap: 4,
-                          padding: "2px 7px", borderRadius: 999, fontSize: 10, fontWeight: 700,
-                          background: m.success ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
-                          color: m.success ? "#22c55e" : "#ef4444",
-                        }}>
-                          {m.success ? "OK" : "FAIL"}
-                        </span>
-                      </td>
-                      <td style={{ padding: "8px 16px", fontFamily: "monospace", fontSize: 11, color: "#ef4444", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {m.http_err && m.http_err !== "null" ? m.http_err : ""}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-      </div>
+      )}
     </div>
   );
 }
