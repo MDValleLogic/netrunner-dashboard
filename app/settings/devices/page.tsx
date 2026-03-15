@@ -4,11 +4,15 @@ import { useState, useEffect } from "react";
 interface Device {
   device_id: string;
   nr_serial: string;
-  vlos_version: string;
-  ip: string;
-  hostname: string;
-  claimed: boolean;
-  last_seen: string;
+  nickname?: string;
+  vlos_version?: string;
+  agent_version?: string;
+  ip?: string;
+  last_ip?: string;
+  hostname?: string;
+  claimed?: boolean;
+  last_seen?: string;
+  status?: string;
 }
 
 export default function DevicesPage() {
