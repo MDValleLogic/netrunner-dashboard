@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
+
 export const runtime = "nodejs";
 
 const OFFLINE_AFTER_SECONDS = 10 * 60;
@@ -13,9 +15,18 @@ function getRows<T = any>(result: any): T[] {
 
 export async function GET(req: Request) {
   try {
+    const { tenantId } = await requireTenantSession();
+
     const { searchParams } = new URL(req.url);
     const deviceId = searchParams.get("device_id") || "";
     if (!deviceId) return NextResponse.json({ ok: false, error: "device_id required" }, { status: 400 });
+
+    const check = await sql`
+      SELECT device_id FROM devices
+      WHERE device_id = ${deviceId} AND tenant_id = ${tenantId}
+      LIMIT 1
+    ` as any[];
+    if (!check.length) return NextResponse.json({ ok: false, error: "device not found" }, { status: 403 });
 
     const devRes = await sql`
       SELECT device_id, last_seen FROM devices WHERE device_id = ${deviceId} LIMIT 1
@@ -53,7 +64,10 @@ export async function GET(req: Request) {
       webrunner: { enabled: interval_s > 0 && urls.length > 0, configured: interval_s > 0 && urls.length > 0, interval_s, url_count: urls.length },
       last_measurement: m ? { ts_utc: m.ts_utc, url: m.url, dns_ms: Number(m.dns_ms), http_ms: Number(m.http_ms), http_err: m.http_err || "" } : null,
     });
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: err?.message || String(err) }, { status: 500 });
+  } catch (e: any) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: e.status });
+    }
+    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
