@@ -57,7 +57,7 @@ export default function MfaSetupPage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Incorrect code"); setCode(""); inputRef.current?.focus(); return; }
       setStep("done");
-      setTimeout(() => router.replace("/devices"), 1800);
+      setTimeout(() => router.replace("/settings/devices"), 1800);
     } catch {
       setError("Network error — please try again");
     } finally {

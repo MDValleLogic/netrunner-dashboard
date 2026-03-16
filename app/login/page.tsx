@@ -29,7 +29,7 @@ function LoginContent() {
     if (me?.mfa_enabled === false) {
       window.location.href = "/mfa-setup";
     } else {
-      window.location.href = "/devices";
+      window.location.href = "/settings/devices";
     }
   }
 
