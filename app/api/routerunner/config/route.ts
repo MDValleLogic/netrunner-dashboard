@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { getToken } from "next-auth/jwt";
+import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
 
 export const dynamic = "force-dynamic";
 
 const DEFAULTS = { targets: ["8.8.8.8", "1.1.1.1"], interval_seconds: 300 };
 
+// GET — Pi-facing, no auth needed
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const device_id = searchParams.get("device_id") || "";
@@ -25,13 +26,20 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// POST — user-facing, tenant scoped
 export async function POST(req: NextRequest) {
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-  if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
   try {
+    const { tenantId } = await requireTenantSession();
+
     const { device_id, targets, interval_seconds } = await req.json();
     if (!device_id || !targets) return NextResponse.json({ ok: false, error: "device_id and targets required" }, { status: 400 });
+
+    const check = await sql`
+      SELECT device_id FROM devices
+      WHERE device_id = ${device_id} AND tenant_id = ${tenantId}
+      LIMIT 1
+    ` as any[];
+    if (!check.length) return NextResponse.json({ ok: false, error: "device not found" }, { status: 403 });
 
     const config = { targets, interval_seconds: interval_seconds || 300 };
 
@@ -45,6 +53,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, device_id, config });
   } catch (e: any) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: e.status });
+    }
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
