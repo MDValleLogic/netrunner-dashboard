@@ -1,11 +1,10 @@
 import { sql } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
 
 export async function POST(req: NextRequest) {
   try {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-    if (!token) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    const { tenantId, session } = await requireTenantSession();
 
     const { nr_serial } = await req.json();
     if (!nr_serial) return NextResponse.json({ ok: false, error: "missing nr_serial" }, { status: 400 });
@@ -23,16 +22,18 @@ export async function POST(req: NextRequest) {
     await sql`
       UPDATE devices SET
         status     = 'claimed',
-        tenant_id  = ${token.tenantId as string},
+        tenant_id  = ${tenantId},
         claimed_at = NOW(),
-        claimed_by = ${token.id as string},
+        claimed_by = ${(session.user as any).id as string},
         updated_at = NOW()
       WHERE device_id = ${device.device_id}
     `;
 
     return NextResponse.json({ ok: true, device });
-
   } catch (e: any) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: e.status });
+    }
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
