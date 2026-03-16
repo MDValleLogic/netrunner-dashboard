@@ -19,7 +19,7 @@ export const authOptions: NextAuthOptions = {
         if (!email || !password) return null;
 
         const rows = await sql`
-          select id, email, name, tenant_id, password_hash
+          select id, email, name, tenant_id, password_hash, email_verified
           from app_users
           where email = ${email}
           limit 1
@@ -29,6 +29,8 @@ export const authOptions: NextAuthOptions = {
 
         const ok = await bcrypt.compare(password, u.password_hash);
         if (!ok) return null;
+
+        if (!u.email_verified) return null;
 
         return {
           id: u.id,
@@ -56,4 +58,3 @@ export const authOptions: NextAuthOptions = {
 
   pages: { signIn: "/login" },
 };
-
