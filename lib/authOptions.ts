@@ -14,12 +14,12 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(creds) {
-        const email = String(creds?.email ?? "").trim().toLowerCase();
+        const email    = String(creds?.email ?? "").trim().toLowerCase();
         const password = String(creds?.password ?? "");
         if (!email || !password) return null;
 
         const rows = await sql`
-          select id, email, name, tenant_id, password_hash, email_verified
+          select id, email, name, tenant_id, password_hash, email_verified, mfa_enabled
           from app_users
           where email = ${email}
           limit 1
@@ -33,10 +33,11 @@ export const authOptions: NextAuthOptions = {
         if (!u.email_verified) return null;
 
         return {
-          id: u.id,
-          email: u.email,
-          name: u.name ?? "",
-          tenantId: u.tenant_id,
+          id:         u.id,
+          email:      u.email,
+          name:       u.name ?? "",
+          tenantId:   u.tenant_id,
+          mfaEnabled: u.mfa_enabled,
         } as any;
       },
     }),
@@ -45,13 +46,15 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        (token as any).tenantId = (user as any).tenantId;
+        (token as any).tenantId   = (user as any).tenantId;
+        (token as any).mfaEnabled = (user as any).mfaEnabled;
         token.name = (user as any).name ?? token.name;
       }
       return token;
     },
     async session({ session, token }) {
-      (session.user as any).tenantId = (token as any).tenantId;
+      (session.user as any).tenantId   = (token as any).tenantId;
+      (session.user as any).mfaEnabled = (token as any).mfaEnabled;
       return session;
     },
   },

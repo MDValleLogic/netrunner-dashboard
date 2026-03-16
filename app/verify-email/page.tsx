@@ -27,7 +27,7 @@ function VerifyEmailContent() {
         const data = await res.json();
         if (!res.ok) { setState("error"); setError(data.error ?? "Verification failed"); return; }
         setState("success");
-        setTimeout(() => { if (!cancelled) router.replace("/mfa-setup"); }, 1200);
+        setTimeout(() => { if (!cancelled) router.replace("/login?verified=true"); }, 1200);
       } catch {
         if (!cancelled) { setState("error"); setError("Network error — please try again"); }
       }
