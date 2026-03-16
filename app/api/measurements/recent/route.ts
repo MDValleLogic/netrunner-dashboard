@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
 
 export const runtime = "nodejs";
 
@@ -12,8 +13,9 @@ function getRows<T = any>(result: any): T[] {
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
+    const { tenantId } = await requireTenantSession();
 
+    const { searchParams } = new URL(req.url);
     const deviceId = searchParams.get("device_id") || "";
     const limitRaw = searchParams.get("limit") || "20";
     const limit = Math.max(1, Math.min(200, Number(limitRaw) || 20));
@@ -21,35 +23,37 @@ export async function GET(req: Request) {
     let result: any;
 
     if (deviceId) {
+      const check = await sql`
+        SELECT device_id FROM devices
+        WHERE device_id = ${deviceId} AND tenant_id = ${tenantId}
+        LIMIT 1
+      ` as any[];
+      if (!check.length) return NextResponse.json({ ok: false, error: "device not found" }, { status: 403 });
+
       result = await sql`
-        select ts_utc, url, dns_ms, http_ms, http_err
-        from measurements
-        where device_id = ${deviceId}
-        order by ts_utc desc
-        limit ${limit}
+        SELECT ts_utc, url, dns_ms, http_ms, http_err
+        FROM measurements
+        WHERE device_id = ${deviceId}
+        ORDER BY ts_utc DESC
+        LIMIT ${limit}
       `;
     } else {
       result = await sql`
-        select ts_utc, url, dns_ms, http_ms, http_err, device_id
-        from measurements
-        order by ts_utc desc
-        limit ${limit}
+        SELECT m.ts_utc, m.url, m.dns_ms, m.http_ms, m.http_err, m.device_id
+        FROM measurements m
+        JOIN devices d ON d.device_id = m.device_id
+        WHERE d.tenant_id = ${tenantId}
+        ORDER BY m.ts_utc DESC
+        LIMIT ${limit}
       `;
     }
 
     const rows = getRows(result);
-
-    return NextResponse.json({
-      ok: true,
-      device_id: deviceId || null,
-      limit,
-      rows,
-    });
-  } catch (err: any) {
-    return NextResponse.json(
-      { ok: false, error: err?.message || String(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: true, device_id: deviceId || null, limit, rows });
+  } catch (e: any) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: e.status });
+    }
+    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
-

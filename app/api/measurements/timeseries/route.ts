@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
 
 export const runtime = "nodejs";
 
@@ -7,75 +8,55 @@ function bad(msg: string, details?: any) {
 }
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-
-  const device_id = searchParams.get("device_id") || "";
-  // support both names (you used minutes in curl earlier)
-  const since_minutes_str =
-    searchParams.get("since_minutes") ||
-    searchParams.get("minutes") ||
-    "60";
-
-  // allow repeated urls=... OR urls comma-separated
-  const urls_multi = searchParams.getAll("urls");
-  const urls_csv = (searchParams.get("urls") || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  const urls = Array.from(new Set([...urls_multi, ...urls_csv])).filter(Boolean);
-  const since_minutes = Number(since_minutes_str);
-
-  if (!device_id) return bad("device_id is required");
-  if (!Number.isFinite(since_minutes) || since_minutes <= 0 || since_minutes > 10080) {
-    return bad("since_minutes must be a number between 1 and 10080");
-  }
-  if (urls.length === 0) return bad("Provide at least one urls parameter (repeat urls=...)");
-  if (urls.length > 20) return bad("Max 20 urls");
-
   try {
-    // Neon sql() returns an array of rows directly
+    const { tenantId } = await requireTenantSession();
+
+    const { searchParams } = new URL(req.url);
+    const device_id = searchParams.get("device_id") || "";
+    const since_minutes_str = searchParams.get("since_minutes") || searchParams.get("minutes") || "60";
+    const urls_multi = searchParams.getAll("urls");
+    const urls_csv = (searchParams.get("urls") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const urls = Array.from(new Set([...urls_multi, ...urls_csv])).filter(Boolean);
+    const since_minutes = Number(since_minutes_str);
+
+    if (!device_id) return bad("device_id is required");
+    if (!Number.isFinite(since_minutes) || since_minutes <= 0 || since_minutes > 10080) {
+      return bad("since_minutes must be a number between 1 and 10080");
+    }
+    if (urls.length === 0) return bad("Provide at least one urls parameter");
+    if (urls.length > 20) return bad("Max 20 urls");
+
+    const check = await sql`
+      SELECT device_id FROM devices
+      WHERE device_id = ${device_id} AND tenant_id = ${tenantId}
+      LIMIT 1
+    ` as any[];
+    if (!check.length) return Response.json({ ok: false, error: "device not found" }, { status: 403 });
+
     const rows = await sql`
       SELECT device_id, ts_utc, url, dns_ms, http_ms, http_err
       FROM measurements
       WHERE device_id = ${device_id}
         AND ts_utc >= NOW() - (${since_minutes}::int * INTERVAL '1 minute')
-      ORDER BY ts_utc ASC;
+      ORDER BY ts_utc ASC
     `;
 
-    // Group by url for the frontend
     const series: Record<string, any[]> = {};
     for (const u of urls) series[u] = [];
-
     const urlSet = new Set(urls);
 
     for (const r of rows as any[]) {
       if (!urlSet.has(r.url)) continue;
-
-      series[r.url].push({
-        ts_utc: r.ts_utc,
-        dns_ms: r.dns_ms,
-        http_ms: r.http_ms,
-        http_err: r.http_err,
-      });
+      series[r.url].push({ ts_utc: r.ts_utc, dns_ms: r.dns_ms, http_ms: r.http_ms, http_err: r.http_err });
     }
 
-    // points = total points returned across selected urls (not total DB rows)
     const points = urls.reduce((acc, u) => acc + (series[u]?.length ?? 0), 0);
 
-    return Response.json({
-      ok: true,
-      device_id,
-      since_minutes,
-      urls,
-      points,
-      series,
-    });
+    return Response.json({ ok: true, device_id, since_minutes, urls, points, series });
   } catch (e: any) {
-    return Response.json(
-      { ok: false, error: "DB query failed", details: String(e?.message ?? e) },
-      { status: 500 }
-    );
+    if (e instanceof AuthError) {
+      return Response.json({ ok: false, error: e.message }, { status: e.status });
+    }
+    return Response.json({ ok: false, error: "DB query failed", details: String(e?.message ?? e) }, { status: 500 });
   }
 }
-
