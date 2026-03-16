@@ -1,27 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
 export const dynamic = "force-dynamic";
 
-// GET /api/devices — list all devices
+// GET /api/devices — list devices for this tenant only
 export async function GET() {
   try {
+    const { tenantId } = await requireTenantSession();
     const rows = await sql`
       SELECT
         device_id, nr_serial, status, nickname, site_name, location,
         address, lat, lng, agent_version, last_seen, last_ip,
         image_version, provisioned_at, claimed_at, tenant_id
       FROM devices
+      WHERE tenant_id = ${tenantId}
       ORDER BY provisioned_at DESC
     `;
     return NextResponse.json({ ok: true, devices: rows });
   } catch (e: any) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: e.status });
+    }
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
 
-// PATCH /api/devices — update nickname, address, site_name + geocode
+// PATCH /api/devices — update nickname, address, site_name + geocode (tenant-scoped)
 export async function PATCH(req: NextRequest) {
   try {
+    const { tenantId } = await requireTenantSession();
     const body = await req.json();
     const { device_id, nickname, address, site_name, location } = body;
 
@@ -52,25 +59,28 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // Build update conditionally to avoid null overwriting existing values
+    // All updates scoped to tenant_id — cannot touch another tenant's device
     if (nickname !== undefined) {
-      await sql`UPDATE devices SET nickname = ${nickname}, updated_at = now() WHERE device_id = ${device_id}`;
+      await sql`UPDATE devices SET nickname = ${nickname}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
     }
     if (address !== undefined) {
-      await sql`UPDATE devices SET address = ${address}, updated_at = now() WHERE device_id = ${device_id}`;
+      await sql`UPDATE devices SET address = ${address}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
     }
     if (site_name !== undefined) {
-      await sql`UPDATE devices SET site_name = ${site_name}, updated_at = now() WHERE device_id = ${device_id}`;
+      await sql`UPDATE devices SET site_name = ${site_name}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
     }
     if (location !== undefined) {
-      await sql`UPDATE devices SET location = ${location}, updated_at = now() WHERE device_id = ${device_id}`;
+      await sql`UPDATE devices SET location = ${location}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
     }
     if (lat !== null && lng !== null) {
-      await sql`UPDATE devices SET lat = ${lat}, lng = ${lng}, updated_at = now() WHERE device_id = ${device_id}`;
+      await sql`UPDATE devices SET lat = ${lat}, lng = ${lng}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
     }
 
     return NextResponse.json({ ok: true, lat, lng });
   } catch (e: any) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: e.status });
+    }
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
