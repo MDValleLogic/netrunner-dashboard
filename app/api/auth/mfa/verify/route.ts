@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
-import { authenticator } from "otplib";
+import { authenticator } from "otplib/preset/default";
 import { getToken } from "next-auth/jwt";
 import { sendWelcomeEmail } from "@/lib/email";
 
