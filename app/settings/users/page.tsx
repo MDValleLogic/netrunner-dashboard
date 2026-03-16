@@ -182,7 +182,7 @@ export default async function UsersPage() {
           borderRadius: 10,
           fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6,
         }}>
-          ⓘ <strong>Coming in Phase 2:</strong> SSO, MFA, and role-based access control (RBAC). Users will be able to set their own passwords via email invite.
+          ⓘ <strong>MFA is now live</strong> — all users are required to set up two-factor authentication on first login. Coming soon: SSO, role-based access control (RBAC), and email invite flow.
         </div>
 
       </div>
