@@ -1,12 +1,11 @@
 import { sql } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-    if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    const { tenantId } = await requireTenantSession();
 
     const range = req.nextUrl.searchParams.get("range") ?? "24h";
     const interval = range === "30d" ? "30 days" : range === "7d" ? "7 days" : "24 hours";
@@ -15,11 +14,17 @@ export async function GET(req: NextRequest) {
     let device_id: string;
 
     if (paramDeviceId) {
+      const check = await sql`
+        SELECT device_id FROM devices
+        WHERE device_id = ${paramDeviceId} AND tenant_id = ${tenantId}
+        LIMIT 1
+      ` as any[];
+      if (!check.length) return NextResponse.json({ error: "device not found" }, { status: 403 });
       device_id = paramDeviceId;
     } else {
       const devices = await sql`
         SELECT device_id FROM devices
-        WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
+        WHERE tenant_id = ${tenantId} AND status = 'claimed'
         ORDER BY last_seen DESC LIMIT 1
       ` as any[];
       if (!devices.length) return NextResponse.json({ rows: [] });
@@ -37,6 +42,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ rows });
   } catch (e: any) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

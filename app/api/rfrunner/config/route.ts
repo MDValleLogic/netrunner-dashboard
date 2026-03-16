@@ -1,21 +1,27 @@
 import { sql } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-    if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    const { tenantId } = await requireTenantSession();
 
     const paramDeviceId = req.nextUrl.searchParams.get("device_id");
     let device_id: string;
+
     if (paramDeviceId) {
+      const check = await sql`
+        SELECT device_id FROM devices
+        WHERE device_id = ${paramDeviceId} AND tenant_id = ${tenantId}
+        LIMIT 1
+      ` as any[];
+      if (!check.length) return NextResponse.json({ error: "device not found" }, { status: 403 });
       device_id = paramDeviceId;
     } else {
       const devices = await sql`
         SELECT device_id FROM devices
-        WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
+        WHERE tenant_id = ${tenantId} AND status = 'claimed'
         ORDER BY last_seen DESC LIMIT 1
       ` as any[];
       if (!devices.length) return NextResponse.json({ config: null });
@@ -28,7 +34,6 @@ export async function GET(req: NextRequest) {
     ` as any[];
 
     if (!rows.length) {
-      // Return defaults if no config saved yet
       return NextResponse.json({
         config: {
           scan_enabled: true,
@@ -43,30 +48,39 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ config: rows[0] });
   } catch (e: any) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-    if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    const { tenantId } = await requireTenantSession();
 
     const body = await req.json();
     const bodyDeviceId = body?.device_id;
     let device_id: string;
+
     if (bodyDeviceId) {
+      const check = await sql`
+        SELECT device_id FROM devices
+        WHERE device_id = ${bodyDeviceId} AND tenant_id = ${tenantId}
+        LIMIT 1
+      ` as any[];
+      if (!check.length) return NextResponse.json({ error: "device not found" }, { status: 403 });
       device_id = bodyDeviceId;
     } else {
       const devices = await sql`
         SELECT device_id FROM devices
-        WHERE tenant_id = ${token.tenantId as string} AND status = 'claimed'
+        WHERE tenant_id = ${tenantId} AND status = 'claimed'
         ORDER BY last_seen DESC LIMIT 1
       ` as any[];
       if (!devices.length) return NextResponse.json({ error: "no device found" }, { status: 404 });
       device_id = devices[0].device_id;
     }
-    const tenant_id = token.tenantId as string;
+
     const {
       scan_enabled = true,
       scan_interval = 60,
@@ -80,7 +94,7 @@ export async function POST(req: NextRequest) {
       INSERT INTO rfrunner_config
         (device_id, tenant_id, scan_enabled, scan_interval, active_enabled, active_ssid, active_psk, active_interval, updated_at)
       VALUES
-        (${device_id}, ${tenant_id}, ${scan_enabled}, ${scan_interval}, ${active_enabled}, ${active_ssid}, ${active_psk}, ${active_interval}, now())
+        (${device_id}, ${tenantId}, ${scan_enabled}, ${scan_interval}, ${active_enabled}, ${active_ssid}, ${active_psk}, ${active_interval}, now())
       ON CONFLICT (device_id) DO UPDATE SET
         scan_enabled    = EXCLUDED.scan_enabled,
         scan_interval   = EXCLUDED.scan_interval,
@@ -93,6 +107,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

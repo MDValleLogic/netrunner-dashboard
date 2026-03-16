@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
 export const dynamic = "force-dynamic";
 
-// Look up vendor from BSSID/MAC using macvendors.com (free, no key needed)
 async function ouiLookup(mac: string | null | undefined): Promise<string | null> {
   if (!mac) return null;
   try {
@@ -22,6 +22,7 @@ async function ouiLookup(mac: string | null | undefined): Promise<string | null>
   }
 }
 
+// POST — Pi ingest, no user auth needed
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -31,8 +32,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "device_id required" }, { status: 400 });
 
     const ts = ts_utc || new Date().toISOString();
-
-    // OUI lookup for the connected AP BSSID
     const bssid_vendor = await ouiLookup(rf_details?.bssid);
 
     await sql`
@@ -45,30 +44,13 @@ export async function POST(req: NextRequest) {
         bssid_vendor,
         host_count, open_ports, risk_score, findings
       ) VALUES (
-        ${device_id},
-        ${ts},
-        ${ssid || null},
-        ${association?.success ?? null},
-        ${association?.auth_time_ms ?? null},
-        ${association?.failure_reason ?? null},
-        ${dhcp?.success ?? null},
-        ${dhcp?.dhcp_time_ms ?? null},
-        ${dhcp?.ip_assigned ?? null},
-        ${dhcp?.gateway ?? null},
-        ${dhcp?.dns_servers ?? null},
-        ${ping?.success ?? null},
-        ${ping?.latency_ms ?? null},
-        ${ping?.packet_loss_pct ?? null},
-        ${rf_details?.bssid ?? null},
-        ${rf_details?.rssi_dbm ?? null},
-        ${rf_details?.channel ?? null},
-        ${rf_details?.band ?? null},
-        ${rf_details?.frequency_mhz ?? null},
+        ${device_id}, ${ts}, ${ssid || null},
+        ${association?.success ?? null}, ${association?.auth_time_ms ?? null}, ${association?.failure_reason ?? null},
+        ${dhcp?.success ?? null}, ${dhcp?.dhcp_time_ms ?? null}, ${dhcp?.ip_assigned ?? null}, ${dhcp?.gateway ?? null}, ${dhcp?.dns_servers ?? null},
+        ${ping?.success ?? null}, ${ping?.latency_ms ?? null}, ${ping?.packet_loss_pct ?? null},
+        ${rf_details?.bssid ?? null}, ${rf_details?.rssi_dbm ?? null}, ${rf_details?.channel ?? null}, ${rf_details?.band ?? null}, ${rf_details?.frequency_mhz ?? null},
         ${bssid_vendor},
-        ${security_scan?.host_count ?? null},
-        ${JSON.stringify(security_scan?.open_ports_found ?? [])},
-        ${security_scan?.risk_score ?? null},
-        ${security_scan?.findings ?? null}
+        ${security_scan?.host_count ?? null}, ${JSON.stringify(security_scan?.open_ports_found ?? [])}, ${security_scan?.risk_score ?? null}, ${security_scan?.findings ?? null}
       )
     `;
 
@@ -79,14 +61,24 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// GET — user facing, tenant scoped
 export async function GET(req: NextRequest) {
   try {
+    const { tenantId } = await requireTenantSession();
+
     const { searchParams } = new URL(req.url);
     const device_id = searchParams.get("device_id");
     const limit = parseInt(searchParams.get("limit") || "20");
 
     if (!device_id)
       return NextResponse.json({ ok: false, error: "device_id required" }, { status: 400 });
+
+    const check = await sql`
+      SELECT device_id FROM devices
+      WHERE device_id = ${device_id} AND tenant_id = ${tenantId}
+      LIMIT 1
+    ` as any[];
+    if (!check.length) return NextResponse.json({ ok: false, error: "device not found" }, { status: 403 });
 
     const rows = await sql`
       SELECT * FROM wifi_tests
@@ -97,6 +89,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, device_id, tests: rows });
   } catch (e: any) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: e.status });
+    }
     console.error("[rfrunner/wifi-test GET]", e.message);
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
