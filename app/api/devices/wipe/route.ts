@@ -25,31 +25,36 @@ export async function POST(req: NextRequest) {
   const wipeAll = !runners || runners.includes("all");
   const deleted: Record<string, number> = {};
 
+  // WebRunner
   if (wipeAll || runners.includes("webrunner")) {
-    const r = await sql`DELETE FROM measurements WHERE device_id = ${device_id}` as any;
-    deleted.measurements = r.length ?? 0;
+    await sql`DELETE FROM measurements  WHERE device_id = ${device_id}`;
+    await sql`DELETE FROM device_urls   WHERE device_id = ${device_id}`;
+    deleted.measurements = 1;
   }
+  // SpeedRunner
   if (wipeAll || runners.includes("speedrunner")) {
-    const r = await sql`DELETE FROM speed_results WHERE device_id = ${device_id}` as any;
-    deleted.speed_results = r.length ?? 0;
+    await sql`DELETE FROM speed_results WHERE device_id = ${device_id}`;
+    deleted.speed_results = 1;
   }
+  // RFRunner
   if (wipeAll || runners.includes("rfrunner")) {
-    await sql`DELETE FROM rf_scans WHERE device_id = ${device_id}`;
+    await sql`DELETE FROM rf_scans        WHERE device_id = ${device_id}`;
     await sql`DELETE FROM rf_scans_hourly WHERE device_id = ${device_id}`;
+    await sql`DELETE FROM wifi_tests      WHERE device_id = ${device_id}`;
     deleted.rf_scans = 1;
   }
+  // RouteRunner
   if (wipeAll || runners.includes("routerunner")) {
-    await sql`DELETE FROM route_hops WHERE device_id = ${device_id}`;
+    await sql`DELETE FROM route_hops   WHERE device_id = ${device_id}`;
     await sql`DELETE FROM route_traces WHERE device_id = ${device_id}`;
     deleted.route_traces = 1;
   }
-  if (wipeAll || runners.includes("results")) {
-    await sql`DELETE FROM results WHERE device_id = ${device_id}`;
-    deleted.results = 1;
-  }
-  if (wipeAll || runners.includes("heartbeats")) {
+  // System data
+  if (wipeAll) {
+    await sql`DELETE FROM results           WHERE device_id = ${device_id}`;
     await sql`DELETE FROM device_heartbeats WHERE device_id = ${device_id}`;
-    deleted.device_heartbeats = 1;
+    await sql`DELETE FROM device_claims     WHERE device_id = ${device_id}`;
+    deleted.system = 1;
   }
 
   return NextResponse.json({
