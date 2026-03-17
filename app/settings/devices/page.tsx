@@ -71,6 +71,9 @@ function DeviceCard({ device, onSaved }: { device: Device; onSaved: () => void }
   const [saving, setSaving] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const [releaseConfirm, setReleaseConfirm] = useState(false);
+  const [wiping, setWiping] = useState(false);
+  const [wipeConfirm, setWipeConfirm] = useState(false);
+  const [wipeMsg, setWipeMsg] = useState("");
   const online = isOnline(device.last_seen);
 
   async function releaseDevice() {
@@ -84,6 +87,19 @@ function DeviceCard({ device, onSaved }: { device: Device; onSaved: () => void }
       const j = await res.json();
       if (j.ok) { onSaved(); }
     } finally { setReleasing(false); setReleaseConfirm(false); }
+  }
+
+  async function wipeData(runners: string[]) {
+    setWiping(true);
+    try {
+      const res = await fetch("/api/devices/wipe", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ device_id: device.device_id, runners }),
+      });
+      const j = await res.json();
+      if (j.ok) { setWipeConfirm(false); setWipeMsg("✓ Data wiped successfully"); setTimeout(() => setWipeMsg(""), 3000); }
+    } finally { setWiping(false); }
   }
 
   async function save() {

@@ -59,8 +59,9 @@ const NAV = [
     { href: "/stormrunner", label: "StormRunner", icon: "storm", phase: "P3", disabled: true },
   ]},
   { section: "System", links: [
-    { href: "/settings/devices", label: "Device Setup", icon: "cpu"   },
-    { href: "/settings/users",   label: "Users",        icon: "users" },
+    { href: "/settings/devices", label: "Device Setup", icon: "cpu"      },
+    { href: "/settings/users",   label: "Users",        icon: "users"    },
+    { href: "/settings/storage", label: "Storage & Data", icon: "clock"  },
   ]},
 ];
 
