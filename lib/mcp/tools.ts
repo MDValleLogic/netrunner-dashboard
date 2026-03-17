@@ -14,7 +14,7 @@ export const MCP_TOOLS: MCPTool[] = [
   {
     name: "list_devices",
     description:
-      "List all NetRunner devices registered to this tenant. Returns device ID, hostname, IP address, online/offline status, last seen timestamp, and agent version.",
+      "List all NetRunner devices registered to this tenant. Returns device ID, nickname, IP address, online/offline status, last seen timestamp, and agent version.",
     inputSchema: {
       type: "object",
       properties: {
@@ -29,7 +29,7 @@ export const MCP_TOOLS: MCPTool[] = [
   {
     name: "get_device_status",
     description:
-      "Get the current status of a specific NetRunner device: online/offline, last seen time, agent version, IP address, hostname, and uptime.",
+      "Get the current status of a specific NetRunner device: online/offline, last seen time, agent version, IP address, nickname, and uptime.",
     inputSchema: {
       type: "object",
       properties: {
@@ -77,7 +77,7 @@ export const MCP_TOOLS: MCPTool[] = [
   {
     name: "get_route_trace",
     description:
-      "Get traceroute results showing the network path from the device to the internet. Includes each hop's IP, hostname, RTT, and ISP identification.",
+      "Get traceroute results showing the network path from the device to the internet. Includes each hop's IP, nickname, RTT, and ISP identification.",
     inputSchema: {
       type: "object",
       properties: {
@@ -155,7 +155,7 @@ async function listDevices(tenantId: string, statusFilter?: string) {
 
   if (statusFilter === "online") {
     rows = await sql`
-      SELECT device_id, hostname, ip_address, agent_version, last_seen, claimed_at,
+      SELECT device_id, nickname, last_ip, agent_version, last_seen, claimed_at,
         'online' AS status
       FROM devices
       WHERE tenant_id = ${tenantId}
@@ -164,7 +164,7 @@ async function listDevices(tenantId: string, statusFilter?: string) {
     ` as any[];
   } else if (statusFilter === "offline") {
     rows = await sql`
-      SELECT device_id, hostname, ip_address, agent_version, last_seen, claimed_at,
+      SELECT device_id, nickname, last_ip, agent_version, last_seen, claimed_at,
         'offline' AS status
       FROM devices
       WHERE tenant_id = ${tenantId}
@@ -173,7 +173,7 @@ async function listDevices(tenantId: string, statusFilter?: string) {
     ` as any[];
   } else {
     rows = await sql`
-      SELECT device_id, hostname, ip_address, agent_version, last_seen, claimed_at,
+      SELECT device_id, nickname, last_ip, agent_version, last_seen, claimed_at,
         CASE WHEN last_seen > NOW() - INTERVAL '3 minutes' THEN 'online' ELSE 'offline' END AS status
       FROM devices
       WHERE tenant_id = ${tenantId}
@@ -186,8 +186,8 @@ async function listDevices(tenantId: string, statusFilter?: string) {
 
 async function getDeviceStatus(deviceId: string, tenantId: string) {
   const rows = await sql`
-    SELECT device_id, hostname, ip_address, agent_version, last_seen, uptime_seconds,
-      status, claimed_at, registered_at,
+    SELECT device_id, nickname, last_ip, agent_version, last_seen, image_version,
+      status, claimed_at, provisioned_at,
       CASE WHEN last_seen > NOW() - INTERVAL '3 minutes' THEN 'online' ELSE 'offline' END AS current_status,
       EXTRACT(EPOCH FROM (NOW() - last_seen))::int AS seconds_since_seen
     FROM devices
