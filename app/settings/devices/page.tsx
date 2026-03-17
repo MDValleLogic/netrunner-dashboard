@@ -236,6 +236,41 @@ function DeviceCard({ device, onSaved }: { device: Device; onSaved: () => void }
                       </div>
                     )}
                   </div>
+
+                  {/* Wipe Data */}
+                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #1f2937" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#6b7280", textTransform: "uppercase", marginBottom: 10 }}>Data Management</div>
+                    {wipeMsg && <div style={{ marginBottom: 10, fontSize: 12, color: "#10b981" }}>{wipeMsg}</div>}
+                    {!wipeConfirm ? (
+                      <button onClick={e => { e.stopPropagation(); setWipeConfirm(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 6, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171", fontSize: 12, cursor: "pointer" }}>
+                        Wipe Device Data
+                      </button>
+                    ) : (
+                      <div style={{ padding: "14px 16px", borderRadius: 8, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                        <div style={{ fontSize: 12, color: "#fca5a5", marginBottom: 12, fontWeight: 600 }}>
+                          ⚠ Permanently deletes runner data for {device.nr_serial}. Device stays claimed. Cannot be undone.
+                        </div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                          {["webrunner","speedrunner","rfrunner","routerunner"].map(r => (
+                            <button key={r} onClick={e => { e.stopPropagation(); wipeData([r]); }} disabled={wiping}
+                              style={{ padding: "5px 12px", borderRadius: 5, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171", fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>
+                              Wipe {r}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={e => { e.stopPropagation(); wipeData(["all"]); }} disabled={wiping}
+                            style={{ padding: "6px 16px", borderRadius: 5, background: "#ef4444", border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                            {wiping ? "Wiping…" : "Wipe ALL Data"}
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); setWipeConfirm(false); }}
+                            style={{ padding: "6px 12px", borderRadius: 5, background: "transparent", border: "1px solid #374151", color: "#9ca3af", fontSize: 12, cursor: "pointer" }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

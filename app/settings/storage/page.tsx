@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import DashboardShell from "@/components/DashboardShell";
 
 interface TableSize { table_name: string; pretty_size: string; bytes: number; row_count: number; }
 interface DeviceStat { device_id: string; nickname: string; nr_serial: string; measurements_rows: number; speed_rows: number; rf_rows: number; rf_hourly_rows: number; route_rows: number; hop_rows: number; results_rows: number; heartbeat_rows: number; }
@@ -40,8 +39,7 @@ export default function StoragePage() {
   const lbl: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#6b7280", textTransform: "uppercase" as any, marginBottom: 10 };
 
   return (
-    <DashboardShell>
-      <div style={{ padding: "28px 32px", fontFamily: "monospace", color: "#e5e7eb", minHeight: "100vh", background: "#0d1117" }}>
+    <div style={{ padding: "28px 32px", fontFamily: "monospace", color: "#e5e7eb", minHeight: "100vh", background: "#0d1117" }}>
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: "#f9fafb", letterSpacing: "-0.02em" }}>Storage & Data</div>
           <div style={{ fontSize: 11, color: "#6b7280", marginTop: 3 }}>Database usage across all devices and runners</div>
@@ -57,7 +55,7 @@ export default function StoragePage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
               {[
                 { label: "Total DB Size", value: data.total.total_pretty, sub: "all tables" },
-                { label: "Runner Data Size", value: data.tables.filter(t => DATA_TABLES.includes(t.table_name)).reduce((a,b) => a + b.bytes, 0) > 1_000_000
+                { label: "Runner Data Size", value: dataTableBytes > 1_000_000
                     ? `${(dataTableBytes / 1_000_000).toFixed(1)} MB`
                     : `${(dataTableBytes / 1_000).toFixed(0)} KB`, sub: "measurements + results" },
                 { label: "Total Rows", value: fmt(data.tables.reduce((a, b) => a + Number(b.row_count), 0)), sub: "across all tables" },
@@ -131,6 +129,5 @@ export default function StoragePage() {
           </>
         )}
       </div>
-    </DashboardShell>
   );
 }
