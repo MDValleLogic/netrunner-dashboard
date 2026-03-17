@@ -69,7 +69,22 @@ function DeviceCard({ device, onSaved }: { device: Device; onSaved: () => void }
   const [location, setLocation] = useState(device.location || "");
   const [address, setAddress] = useState(device.address || "");
   const [saving, setSaving] = useState(false);
+  const [releasing, setReleasing] = useState(false);
+  const [releaseConfirm, setReleaseConfirm] = useState(false);
   const online = isOnline(device.last_seen);
+
+  async function releaseDevice() {
+    setReleasing(true);
+    try {
+      const res = await fetch("/api/devices/release", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ device_id: device.device_id }),
+      });
+      const j = await res.json();
+      if (j.ok) { onSaved(); }
+    } finally { setReleasing(false); setReleaseConfirm(false); }
+  }
 
   async function save() {
     setSaving(true);
@@ -185,9 +200,26 @@ function DeviceCard({ device, onSaved }: { device: Device; onSaved: () => void }
                       </div>
                     ))}
                   </div>
-                  <button onClick={e => { e.stopPropagation(); setEditing(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 6, background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", color: "#60a5fa", fontSize: 12, cursor: "pointer" }}>
-                    <Edit2 size={13} /> Edit Device
-                  </button>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <button onClick={e => { e.stopPropagation(); setEditing(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 6, background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", color: "#60a5fa", fontSize: 12, cursor: "pointer" }}>
+                      <Edit2 size={13} /> Edit Device
+                    </button>
+                    {!releaseConfirm ? (
+                      <button onClick={e => { e.stopPropagation(); setReleaseConfirm(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 6, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171", fontSize: 12, cursor: "pointer" }}>
+                        Release Device
+                      </button>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 14px", borderRadius: 6, background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.4)" }}>
+                        <span style={{ fontSize: 12, color: "#fca5a5" }}>Release {device.nr_serial}? This removes it from your account.</span>
+                        <button onClick={e => { e.stopPropagation(); releaseDevice(); }} disabled={releasing} style={{ padding: "4px 12px", borderRadius: 5, background: "#ef4444", border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                          {releasing ? "Releasing…" : "Confirm"}
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); setReleaseConfirm(false); }} style={{ padding: "4px 10px", borderRadius: 5, background: "transparent", border: "1px solid #374151", color: "#9ca3af", fontSize: 12, cursor: "pointer" }}>
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
