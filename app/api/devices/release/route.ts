@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "device_id is required" }, { status: 400 });
   }
 
-  // Verify device belongs to this tenant before releasing
+  // Verify device belongs to this tenant
   const check = await sql`
     SELECT device_id, nr_serial, nickname
     FROM devices
@@ -24,6 +24,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Device not found or does not belong to your account" }, { status: 404 });
   }
 
+  // Wipe all data associated with this device
+  await sql`DELETE FROM measurements       WHERE device_id = ${device_id}`;
+  await sql`DELETE FROM speed_results      WHERE device_id = ${device_id}`;
+  await sql`DELETE FROM rf_scans           WHERE device_id = ${device_id}`;
+  await sql`DELETE FROM rf_scans_hourly    WHERE device_id = ${device_id}`;
+  await sql`DELETE FROM route_hops         WHERE device_id = ${device_id}`;
+  await sql`DELETE FROM route_traces       WHERE device_id = ${device_id}`;
+  await sql`DELETE FROM results            WHERE device_id = ${device_id}`;
+  await sql`DELETE FROM device_heartbeats  WHERE device_id = ${device_id}`;
+  await sql`DELETE FROM device_config      WHERE device_id = ${device_id}`;
+
   // Release: clear tenant association, reset to unclaimed
   await sql`
     UPDATE devices
@@ -31,13 +42,20 @@ export async function POST(req: NextRequest) {
       tenant_id  = NULL,
       status     = 'unclaimed',
       claimed_at = NULL,
-      claimed_by = NULL
+      claimed_by = NULL,
+      nickname   = NULL,
+      site_name  = NULL,
+      location   = NULL,
+      address    = NULL,
+      lat        = NULL,
+      lng        = NULL,
+      notes      = NULL
     WHERE device_id = ${device_id}
   `;
 
   return NextResponse.json({
     ok: true,
-    message: `Device ${check[0].nr_serial} released. It can now be claimed by another account.`,
+    message: `Device ${check[0].nr_serial} released and all data wiped. It can now be claimed by another account.`,
     nr_serial: check[0].nr_serial,
   });
 }
