@@ -52,9 +52,11 @@ const NAV = [
     { href: "/rfrunner/active",   label: "Active Mode", icon: "shield"   },
     { href: "/rfrunner/config",   label: "Config",    icon: "settings" },
   ]},
-  { section: "Coming Soon", links: [
-    { href: "/stormrunner",   label: "StormRunner",   icon: "storm",    phase: "P3", disabled: true },
+  { section: "COMMANDRUNNER", links: [
     { href: "/commandrunner", label: "AI Query", icon: "terminal" },
+  ]},
+  { section: "Coming Soon", links: [
+    { href: "/stormrunner", label: "StormRunner", icon: "storm", phase: "P3", disabled: true },
   ]},
   { section: "System", links: [
     { href: "/settings/devices", label: "Device Setup", icon: "cpu"   },
