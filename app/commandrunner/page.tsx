@@ -117,7 +117,7 @@ export default function CommandRunnerPage() {
 
   return (
     <DashboardShell>
-      <div style={{ padding: "28px 32px", fontFamily: "monospace", color: "#e5e7eb", maxWidth: 900, minHeight: "100vh", background: "#0d1117" }}>
+      <div style={{ padding: "28px 32px", fontFamily: "monospace", color: "#e5e7eb", minHeight: "100vh", background: "#0d1117" }}>
 
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
