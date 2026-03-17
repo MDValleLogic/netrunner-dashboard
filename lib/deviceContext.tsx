@@ -58,10 +58,13 @@ export function DeviceProvider({ children }: { children: React.ReactNode }) {
             nickname: d.nickname,
           }));
         setDevicesState(list);
-        // Auto-select first device if none saved
-        if (!saved && list.length > 0) {
+        // Validate saved device belongs to this tenant — clear if not
+        const savedBelongs = saved && list.some(d => d.device_id === saved);
+        if (!savedBelongs && list.length > 0) {
           setSelectedDeviceIdState(list[0].device_id);
           setCookie(COOKIE, list[0].device_id);
+        } else if (savedBelongs) {
+          setSelectedDeviceIdState(saved!);
         }
       })
       .catch(() => {});
