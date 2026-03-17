@@ -54,7 +54,7 @@ const NAV = [
   ]},
   { section: "Coming Soon", links: [
     { href: "/stormrunner",   label: "StormRunner",   icon: "storm",    phase: "P3", disabled: true },
-    { href: "/commandrunner", label: "CommandRunner", icon: "terminal", phase: "P3", disabled: true },
+    { href: "/commandrunner", label: "AI Query", icon: "terminal" },
   ]},
   { section: "System", links: [
     { href: "/settings/devices", label: "Device Setup", icon: "cpu"   },
