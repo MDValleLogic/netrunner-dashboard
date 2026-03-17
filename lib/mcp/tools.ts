@@ -1,8 +1,4 @@
-import { db } from "@/lib/db";
-
-// ---------------------------------------------------------------------------
-// MCP Tool Registry
-// ---------------------------------------------------------------------------
+import { sql } from "@/lib/db";
 
 export interface MCPTool {
   name: string;
@@ -52,14 +48,10 @@ export const MCP_TOOLS: MCPTool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        device_id: {
-          type: "string",
-          description: "The device ID.",
-        },
+        device_id: { type: "string", description: "The device ID." },
         hours: {
           type: "number",
-          description:
-            "How many hours of history to return. Defaults to 24. Max 168 (7 days).",
+          description: "How many hours of history to return. Defaults to 24. Max 168 (7 days).",
         },
       },
       required: ["device_id"],
@@ -68,22 +60,15 @@ export const MCP_TOOLS: MCPTool[] = [
   {
     name: "get_speed_results",
     description:
-      "Get internet speed test results for a device. Returns download/upload speeds (Mbps) and ping (ms) over time, with optional filtering by time range.",
+      "Get internet speed test results for a device. Returns download/upload speeds (Mbps) and ping (ms) over time.",
     inputSchema: {
       type: "object",
       properties: {
-        device_id: {
-          type: "string",
-          description: "The device ID.",
-        },
-        hours: {
-          type: "number",
-          description: "Hours of history to return. Defaults to 24. Max 168.",
-        },
+        device_id: { type: "string", description: "The device ID." },
+        hours: { type: "number", description: "Hours of history. Defaults to 24. Max 168." },
         include_summary: {
           type: "boolean",
-          description:
-            "Include min/max/avg summary statistics. Defaults to true.",
+          description: "Include min/max/avg summary statistics. Defaults to true.",
         },
       },
       required: ["device_id"],
@@ -96,14 +81,8 @@ export const MCP_TOOLS: MCPTool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        device_id: {
-          type: "string",
-          description: "The device ID.",
-        },
-        limit: {
-          type: "number",
-          description: "Number of most recent traces to return. Defaults to 5.",
-        },
+        device_id: { type: "string", description: "The device ID." },
+        limit: { type: "number", description: "Number of most recent traces to return. Defaults to 5." },
       },
       required: ["device_id"],
     },
@@ -115,18 +94,9 @@ export const MCP_TOOLS: MCPTool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        device_id: {
-          type: "string",
-          description: "The device ID.",
-        },
-        hours: {
-          type: "number",
-          description: "Hours of history to return. Defaults to 24. Max 168.",
-        },
-        url_filter: {
-          type: "string",
-          description: "Optional: filter results to a specific monitored URL.",
-        },
+        device_id: { type: "string", description: "The device ID." },
+        hours: { type: "number", description: "Hours of history. Defaults to 24. Max 168." },
+        url_filter: { type: "string", description: "Optional: filter results to a specific monitored URL." },
       },
       required: ["device_id"],
     },
@@ -138,20 +108,9 @@ export const MCP_TOOLS: MCPTool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        device_id: {
-          type: "string",
-          description: "The device ID.",
-        },
-        hours: {
-          type: "number",
-          description:
-            "Hours of history. Defaults to 24. Max 168 (1 week). Use 168 for weekly trend analysis.",
-        },
-        bucket_minutes: {
-          type: "number",
-          description:
-            "Bucket size in minutes for aggregation. Defaults to 60. Use 15 for high-resolution.",
-        },
+        device_id: { type: "string", description: "The device ID." },
+        hours: { type: "number", description: "Hours of history. Defaults to 24. Max 168." },
+        bucket_minutes: { type: "number", description: "Bucket size in minutes. Defaults to 60." },
       },
       required: ["device_id"],
     },
@@ -170,48 +129,18 @@ export async function dispatchTool(
   switch (toolName) {
     case "list_devices":
       return listDevices(tenantId, args.status_filter as string | undefined);
-
     case "get_device_status":
       return getDeviceStatus(args.device_id as string, tenantId);
-
     case "get_rf_history":
-      return getRFHistory(
-        args.device_id as string,
-        tenantId,
-        (args.hours as number) ?? 24
-      );
-
+      return getRFHistory(args.device_id as string, tenantId, (args.hours as number) ?? 24);
     case "get_speed_results":
-      return getSpeedResults(
-        args.device_id as string,
-        tenantId,
-        (args.hours as number) ?? 24,
-        (args.include_summary as boolean) ?? true
-      );
-
+      return getSpeedResults(args.device_id as string, tenantId, (args.hours as number) ?? 24, (args.include_summary as boolean) ?? true);
     case "get_route_trace":
-      return getRouteTrace(
-        args.device_id as string,
-        tenantId,
-        (args.limit as number) ?? 5
-      );
-
+      return getRouteTrace(args.device_id as string, tenantId, (args.limit as number) ?? 5);
     case "get_webrunner_data":
-      return getWebrunnerData(
-        args.device_id as string,
-        tenantId,
-        (args.hours as number) ?? 24,
-        args.url_filter as string | undefined
-      );
-
+      return getWebrunnerData(args.device_id as string, tenantId, (args.hours as number) ?? 24, args.url_filter as string | undefined);
     case "get_measurements_timeseries":
-      return getMeasurementsTimeseries(
-        args.device_id as string,
-        tenantId,
-        (args.hours as number) ?? 24,
-        (args.bucket_minutes as number) ?? 60
-      );
-
+      return getMeasurementsTimeseries(args.device_id as string, tenantId, (args.hours as number) ?? 24, (args.bucket_minutes as number) ?? 60);
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -222,358 +151,226 @@ export async function dispatchTool(
 // ---------------------------------------------------------------------------
 
 async function listDevices(tenantId: string, statusFilter?: string) {
-  let whereClause = "WHERE d.tenant_id = $1";
-  const params: unknown[] = [tenantId];
+  let rows: any[];
 
   if (statusFilter === "online") {
-    whereClause += " AND d.last_seen > NOW() - INTERVAL '3 minutes'";
+    rows = await sql`
+      SELECT device_id, hostname, ip_address, agent_version, last_seen, claimed_at,
+        'online' AS status
+      FROM devices
+      WHERE tenant_id = ${tenantId}
+        AND last_seen > NOW() - INTERVAL '3 minutes'
+      ORDER BY last_seen DESC NULLS LAST
+    ` as any[];
   } else if (statusFilter === "offline") {
-    whereClause += " AND (d.last_seen IS NULL OR d.last_seen <= NOW() - INTERVAL '3 minutes')";
+    rows = await sql`
+      SELECT device_id, hostname, ip_address, agent_version, last_seen, claimed_at,
+        'offline' AS status
+      FROM devices
+      WHERE tenant_id = ${tenantId}
+        AND (last_seen IS NULL OR last_seen <= NOW() - INTERVAL '3 minutes')
+      ORDER BY last_seen DESC NULLS LAST
+    ` as any[];
+  } else {
+    rows = await sql`
+      SELECT device_id, hostname, ip_address, agent_version, last_seen, claimed_at,
+        CASE WHEN last_seen > NOW() - INTERVAL '3 minutes' THEN 'online' ELSE 'offline' END AS status
+      FROM devices
+      WHERE tenant_id = ${tenantId}
+      ORDER BY last_seen DESC NULLS LAST
+    ` as any[];
   }
 
-  const result = await db.query(
-    `SELECT
-       d.device_id,
-       d.hostname,
-       d.ip_address,
-       d.agent_version,
-       d.last_seen,
-       d.claimed_at,
-       CASE
-         WHEN d.last_seen > NOW() - INTERVAL '3 minutes' THEN 'online'
-         ELSE 'offline'
-       END AS status
-     FROM devices d
-     ${whereClause}
-     ORDER BY d.last_seen DESC NULLS LAST`,
-    params
-  );
-
-  return {
-    device_count: result.rows.length,
-    devices: result.rows.map((r) => ({
-      device_id: r.device_id,
-      hostname: r.hostname,
-      ip_address: r.ip_address,
-      status: r.status,
-      last_seen: r.last_seen,
-      agent_version: r.agent_version,
-      claimed_at: r.claimed_at,
-    })),
-  };
+  return { device_count: rows.length, devices: rows };
 }
 
 async function getDeviceStatus(deviceId: string, tenantId: string) {
-  const result = await db.query(
-    `SELECT
-       d.device_id,
-       d.hostname,
-       d.ip_address,
-       d.agent_version,
-       d.last_seen,
-       d.uptime_seconds,
-       d.status,
-       d.claimed_at,
-       d.registered_at,
-       CASE
-         WHEN d.last_seen > NOW() - INTERVAL '3 minutes' THEN 'online'
-         ELSE 'offline'
-       END AS current_status,
-       EXTRACT(EPOCH FROM (NOW() - d.last_seen))::int AS seconds_since_seen
-     FROM devices d
-     WHERE d.device_id = $1 AND d.tenant_id = $2`,
-    [deviceId, tenantId]
-  );
+  const rows = await sql`
+    SELECT device_id, hostname, ip_address, agent_version, last_seen, uptime_seconds,
+      status, claimed_at, registered_at,
+      CASE WHEN last_seen > NOW() - INTERVAL '3 minutes' THEN 'online' ELSE 'offline' END AS current_status,
+      EXTRACT(EPOCH FROM (NOW() - last_seen))::int AS seconds_since_seen
+    FROM devices
+    WHERE device_id = ${deviceId} AND tenant_id = ${tenantId}
+  ` as any[];
 
-  if (result.rows.length === 0) {
-    return { error: `Device ${deviceId} not found or does not belong to this tenant.` };
-  }
-
-  return result.rows[0];
+  if (rows.length === 0) return { error: `Device ${deviceId} not found or does not belong to this tenant.` };
+  return rows[0];
 }
 
-async function getRFHistory(
-  deviceId: string,
-  tenantId: string,
-  hours: number
-) {
+async function getRFHistory(deviceId: string, tenantId: string, hours: number) {
   const clampedHours = Math.min(hours, 168);
+  if (!(await verifyDeviceTenant(deviceId, tenantId))) return { error: `Device ${deviceId} not found.` };
 
-  // Verify device belongs to tenant
-  const deviceCheck = await verifyDeviceTenant(deviceId, tenantId);
-  if (!deviceCheck) return { error: `Device ${deviceId} not found.` };
+  const history = await sql`
+    SELECT
+      DATE_TRUNC('hour', scanned_at) AS hour,
+      COUNT(*)::int AS scan_count,
+      AVG(ap_count)::int AS avg_ap_count,
+      MAX(ap_count)::int AS max_ap_count,
+      AVG(avg_signal)::numeric(5,1) AS avg_signal_dbm,
+      SUM(band_2ghz_count)::int AS band_2ghz_aps,
+      SUM(band_5ghz_count)::int AS band_5ghz_aps,
+      SUM(band_6ghz_count)::int AS band_6ghz_aps
+    FROM rf_scans_hourly
+    WHERE device_id = ${deviceId}
+      AND scanned_at > NOW() - (${clampedHours} || ' hours')::interval
+    GROUP BY DATE_TRUNC('hour', scanned_at)
+    ORDER BY hour DESC
+  ` as any[];
 
-  const result = await db.query(
-    `SELECT
-       DATE_TRUNC('hour', scanned_at) AS hour,
-       COUNT(*)::int AS scan_count,
-       AVG(ap_count)::int AS avg_ap_count,
-       MAX(ap_count)::int AS max_ap_count,
-       AVG(avg_signal)::numeric(5,1) AS avg_signal_dbm,
-       SUM(band_2ghz_count)::int AS band_2ghz_aps,
-       SUM(band_5ghz_count)::int AS band_5ghz_aps,
-       SUM(band_6ghz_count)::int AS band_6ghz_aps
-     FROM rf_scans_hourly
-     WHERE device_id = $1
-       AND scanned_at > NOW() - ($2 || ' hours')::interval
-     GROUP BY DATE_TRUNC('hour', scanned_at)
-     ORDER BY hour DESC`,
-    [deviceId, clampedHours]
-  );
+  const latest = await sql`
+    SELECT ap_count, avg_signal, band_2ghz_count, band_5ghz_count, band_6ghz_count, scanned_at
+    FROM rf_scans
+    WHERE device_id = ${deviceId}
+    ORDER BY scanned_at DESC
+    LIMIT 1
+  ` as any[];
 
-  // Also grab most recent raw scan for current snapshot
-  const latest = await db.query(
-    `SELECT ap_count, avg_signal, band_2ghz_count, band_5ghz_count,
-            band_6ghz_count, scanned_at
-     FROM rf_scans
-     WHERE device_id = $1
-     ORDER BY scanned_at DESC
-     LIMIT 1`,
-    [deviceId]
-  );
-
-  return {
-    device_id: deviceId,
-    hours_requested: clampedHours,
-    current_snapshot: latest.rows[0] ?? null,
-    hourly_history: result.rows,
-  };
+  return { device_id: deviceId, hours_requested: clampedHours, current_snapshot: latest[0] ?? null, hourly_history: history };
 }
 
-async function getSpeedResults(
-  deviceId: string,
-  tenantId: string,
-  hours: number,
-  includeSummary: boolean
-) {
+async function getSpeedResults(deviceId: string, tenantId: string, hours: number, includeSummary: boolean) {
   const clampedHours = Math.min(hours, 168);
+  if (!(await verifyDeviceTenant(deviceId, tenantId))) return { error: `Device ${deviceId} not found.` };
 
-  const deviceCheck = await verifyDeviceTenant(deviceId, tenantId);
-  if (!deviceCheck) return { error: `Device ${deviceId} not found.` };
-
-  const result = await db.query(
-    `SELECT
-       tested_at,
-       download_mbps,
-       upload_mbps,
-       ping_ms,
-       jitter_ms,
-       server_name,
-       server_location
-     FROM speed_results
-     WHERE device_id = $1
-       AND tested_at > NOW() - ($2 || ' hours')::interval
-     ORDER BY tested_at DESC`,
-    [deviceId, clampedHours]
-  );
+  const rows = await sql`
+    SELECT tested_at, download_mbps, upload_mbps, ping_ms, jitter_ms, server_name, server_location
+    FROM speed_results
+    WHERE device_id = ${deviceId}
+      AND tested_at > NOW() - (${clampedHours} || ' hours')::interval
+    ORDER BY tested_at DESC
+  ` as any[];
 
   const response: Record<string, unknown> = {
     device_id: deviceId,
     hours_requested: clampedHours,
-    test_count: result.rows.length,
-    results: result.rows,
+    test_count: rows.length,
+    results: rows,
   };
 
-  if (includeSummary && result.rows.length > 0) {
-    const downloads = result.rows.map((r) => r.download_mbps).filter(Boolean);
-    const uploads = result.rows.map((r) => r.upload_mbps).filter(Boolean);
-    const pings = result.rows.map((r) => r.ping_ms).filter(Boolean);
-
+  if (includeSummary && rows.length > 0) {
+    const downloads = rows.map((r: any) => r.download_mbps).filter(Boolean);
+    const uploads = rows.map((r: any) => r.upload_mbps).filter(Boolean);
+    const pings = rows.map((r: any) => r.ping_ms).filter(Boolean);
     response.summary = {
-      download_mbps: {
-        min: Math.min(...downloads).toFixed(1),
-        max: Math.max(...downloads).toFixed(1),
-        avg: (downloads.reduce((a, b) => a + b, 0) / downloads.length).toFixed(1),
-      },
-      upload_mbps: {
-        min: Math.min(...uploads).toFixed(1),
-        max: Math.max(...uploads).toFixed(1),
-        avg: (uploads.reduce((a, b) => a + b, 0) / uploads.length).toFixed(1),
-      },
-      ping_ms: {
-        min: Math.min(...pings).toFixed(1),
-        max: Math.max(...pings).toFixed(1),
-        avg: (pings.reduce((a, b) => a + b, 0) / pings.length).toFixed(1),
-      },
+      download_mbps: { min: Math.min(...downloads).toFixed(1), max: Math.max(...downloads).toFixed(1), avg: (downloads.reduce((a: number, b: number) => a + b, 0) / downloads.length).toFixed(1) },
+      upload_mbps: { min: Math.min(...uploads).toFixed(1), max: Math.max(...uploads).toFixed(1), avg: (uploads.reduce((a: number, b: number) => a + b, 0) / uploads.length).toFixed(1) },
+      ping_ms: { min: Math.min(...pings).toFixed(1), max: Math.max(...pings).toFixed(1), avg: (pings.reduce((a: number, b: number) => a + b, 0) / pings.length).toFixed(1) },
     };
   }
 
   return response;
 }
 
-async function getRouteTrace(
-  deviceId: string,
-  tenantId: string,
-  limit: number
-) {
-  const deviceCheck = await verifyDeviceTenant(deviceId, tenantId);
-  if (!deviceCheck) return { error: `Device ${deviceId} not found.` };
+async function getRouteTrace(deviceId: string, tenantId: string, limit: number) {
+  if (!(await verifyDeviceTenant(deviceId, tenantId))) return { error: `Device ${deviceId} not found.` };
 
-  const traces = await db.query(
-    `SELECT id, traced_at, target_host, hop_count, total_rtt_ms
-     FROM route_results
-     WHERE device_id = $1
-     ORDER BY traced_at DESC
-     LIMIT $2`,
-    [deviceId, Math.min(limit, 20)]
-  );
+  const traces = await sql`
+    SELECT id, traced_at, target_host, hop_count, total_rtt_ms
+    FROM route_results
+    WHERE device_id = ${deviceId}
+    ORDER BY traced_at DESC
+    LIMIT ${Math.min(limit, 20)}
+  ` as any[];
 
-  if (traces.rows.length === 0) {
-    return { device_id: deviceId, traces: [] };
-  }
+  if (traces.length === 0) return { device_id: deviceId, traces: [] };
 
-  // Fetch hops for each trace
-  const traceIds = traces.rows.map((r) => r.id);
-  const hops = await db.query(
-    `SELECT trace_id, hop_number, ip_address, hostname, rtt_ms, isp_name, is_private
-     FROM route_hops
-     WHERE trace_id = ANY($1)
-     ORDER BY trace_id, hop_number`,
-    [traceIds]
-  );
+  const traceIds = traces.map((r: any) => r.id);
+  const hops = await sql`
+    SELECT trace_id, hop_number, ip_address, hostname, rtt_ms, isp_name, is_private
+    FROM route_hops
+    WHERE trace_id = ANY(${traceIds})
+    ORDER BY trace_id, hop_number
+  ` as any[];
 
-  // Group hops by trace
   const hopsByTrace: Record<string, unknown[]> = {};
-  for (const hop of hops.rows) {
+  for (const hop of hops) {
     if (!hopsByTrace[hop.trace_id]) hopsByTrace[hop.trace_id] = [];
-    hopsByTrace[hop.trace_id].push({
-      hop: hop.hop_number,
-      ip: hop.ip_address,
-      hostname: hop.hostname,
-      rtt_ms: hop.rtt_ms,
-      isp: hop.isp_name,
-      is_private: hop.is_private,
-    });
+    hopsByTrace[hop.trace_id].push({ hop: hop.hop_number, ip: hop.ip_address, hostname: hop.hostname, rtt_ms: hop.rtt_ms, isp: hop.isp_name, is_private: hop.is_private });
   }
 
   return {
     device_id: deviceId,
-    trace_count: traces.rows.length,
-    traces: traces.rows.map((t) => ({
-      traced_at: t.traced_at,
-      target: t.target_host,
-      hop_count: t.hop_count,
-      total_rtt_ms: t.total_rtt_ms,
-      hops: hopsByTrace[t.id] ?? [],
-    })),
+    trace_count: traces.length,
+    traces: traces.map((t: any) => ({ traced_at: t.traced_at, target: t.target_host, hop_count: t.hop_count, total_rtt_ms: t.total_rtt_ms, hops: hopsByTrace[t.id] ?? [] })),
   };
 }
 
-async function getWebrunnerData(
-  deviceId: string,
-  tenantId: string,
-  hours: number,
-  urlFilter?: string
-) {
+async function getWebrunnerData(deviceId: string, tenantId: string, hours: number, urlFilter?: string) {
   const clampedHours = Math.min(hours, 168);
+  if (!(await verifyDeviceTenant(deviceId, tenantId))) return { error: `Device ${deviceId} not found.` };
 
-  const deviceCheck = await verifyDeviceTenant(deviceId, tenantId);
-  if (!deviceCheck) return { error: `Device ${deviceId} not found.` };
+  const rows = urlFilter
+    ? await sql`
+        SELECT target_url, DATE_TRUNC('hour', checked_at) AS hour,
+          COUNT(*)::int AS check_count,
+          AVG(response_time_ms)::int AS avg_response_ms,
+          MIN(response_time_ms)::int AS min_response_ms,
+          MAX(response_time_ms)::int AS max_response_ms,
+          AVG(dns_time_ms)::int AS avg_dns_ms,
+          SUM(CASE WHEN status_code >= 400 OR status_code IS NULL THEN 1 ELSE 0 END)::int AS error_count,
+          ROUND(100.0 * SUM(CASE WHEN status_code >= 200 AND status_code < 400 THEN 1 ELSE 0 END) / COUNT(*), 1) AS uptime_pct
+        FROM webrunner_live
+        WHERE device_id = ${deviceId}
+          AND checked_at > NOW() - (${clampedHours} || ' hours')::interval
+          AND target_url = ${urlFilter}
+        GROUP BY target_url, DATE_TRUNC('hour', checked_at)
+        ORDER BY target_url, hour DESC
+      ` as any[]
+    : await sql`
+        SELECT target_url, DATE_TRUNC('hour', checked_at) AS hour,
+          COUNT(*)::int AS check_count,
+          AVG(response_time_ms)::int AS avg_response_ms,
+          MIN(response_time_ms)::int AS min_response_ms,
+          MAX(response_time_ms)::int AS max_response_ms,
+          AVG(dns_time_ms)::int AS avg_dns_ms,
+          SUM(CASE WHEN status_code >= 400 OR status_code IS NULL THEN 1 ELSE 0 END)::int AS error_count,
+          ROUND(100.0 * SUM(CASE WHEN status_code >= 200 AND status_code < 400 THEN 1 ELSE 0 END) / COUNT(*), 1) AS uptime_pct
+        FROM webrunner_live
+        WHERE device_id = ${deviceId}
+          AND checked_at > NOW() - (${clampedHours} || ' hours')::interval
+        GROUP BY target_url, DATE_TRUNC('hour', checked_at)
+        ORDER BY target_url, hour DESC
+      ` as any[];
 
-  const params: unknown[] = [deviceId, clampedHours];
-  let urlClause = "";
-  if (urlFilter) {
-    params.push(urlFilter);
-    urlClause = `AND target_url = $${params.length}`;
-  }
-
-  const result = await db.query(
-    `SELECT
-       target_url,
-       DATE_TRUNC('hour', checked_at) AS hour,
-       COUNT(*)::int AS check_count,
-       AVG(response_time_ms)::int AS avg_response_ms,
-       MIN(response_time_ms)::int AS min_response_ms,
-       MAX(response_time_ms)::int AS max_response_ms,
-       AVG(dns_time_ms)::int AS avg_dns_ms,
-       SUM(CASE WHEN status_code >= 400 OR status_code IS NULL THEN 1 ELSE 0 END)::int AS error_count,
-       ROUND(
-         100.0 * SUM(CASE WHEN status_code >= 200 AND status_code < 400 THEN 1 ELSE 0 END) / COUNT(*),
-         1
-       ) AS uptime_pct
-     FROM webrunner_live
-     WHERE device_id = $1
-       AND checked_at > NOW() - ($2 || ' hours')::interval
-       ${urlClause}
-     GROUP BY target_url, DATE_TRUNC('hour', checked_at)
-     ORDER BY target_url, hour DESC`,
-    params
-  );
-
-  // Group by URL
   const byUrl: Record<string, unknown[]> = {};
-  for (const row of result.rows) {
+  for (const row of rows) {
     if (!byUrl[row.target_url]) byUrl[row.target_url] = [];
-    byUrl[row.target_url].push({
-      hour: row.hour,
-      checks: row.check_count,
-      avg_response_ms: row.avg_response_ms,
-      min_response_ms: row.min_response_ms,
-      max_response_ms: row.max_response_ms,
-      avg_dns_ms: row.avg_dns_ms,
-      errors: row.error_count,
-      uptime_pct: row.uptime_pct,
-    });
+    byUrl[row.target_url].push({ hour: row.hour, checks: row.check_count, avg_response_ms: row.avg_response_ms, min_response_ms: row.min_response_ms, max_response_ms: row.max_response_ms, avg_dns_ms: row.avg_dns_ms, errors: row.error_count, uptime_pct: row.uptime_pct });
   }
 
-  return {
-    device_id: deviceId,
-    hours_requested: clampedHours,
-    monitored_urls: Object.keys(byUrl).length,
-    data: byUrl,
-  };
+  return { device_id: deviceId, hours_requested: clampedHours, monitored_urls: Object.keys(byUrl).length, data: byUrl };
 }
 
-async function getMeasurementsTimeseries(
-  deviceId: string,
-  tenantId: string,
-  hours: number,
-  bucketMinutes: number
-) {
+async function getMeasurementsTimeseries(deviceId: string, tenantId: string, hours: number, bucketMinutes: number) {
   const clampedHours = Math.min(hours, 168);
   const clampedBucket = Math.max(5, Math.min(bucketMinutes, 1440));
+  if (!(await verifyDeviceTenant(deviceId, tenantId))) return { error: `Device ${deviceId} not found.` };
 
-  const deviceCheck = await verifyDeviceTenant(deviceId, tenantId);
-  if (!deviceCheck) return { error: `Device ${deviceId} not found.` };
+  const rows = await sql`
+    SELECT
+      DATE_TRUNC('minute', measured_at) -
+        (EXTRACT(MINUTE FROM measured_at)::int % ${clampedBucket} * INTERVAL '1 minute') AS bucket,
+      AVG(download_mbps)::numeric(8,2) AS avg_download_mbps,
+      AVG(upload_mbps)::numeric(8,2) AS avg_upload_mbps,
+      AVG(ping_ms)::numeric(6,1) AS avg_ping_ms,
+      AVG(ap_count)::numeric(5,1) AS avg_ap_count,
+      AVG(avg_signal)::numeric(5,1) AS avg_signal_dbm,
+      COUNT(*)::int AS sample_count
+    FROM measurements_recent
+    WHERE device_id = ${deviceId}
+      AND measured_at > NOW() - (${clampedHours} || ' hours')::interval
+    GROUP BY bucket
+    ORDER BY bucket DESC
+  ` as any[];
 
-  const result = await db.query(
-    `SELECT
-       DATE_TRUNC('minute', measured_at) -
-         (EXTRACT(MINUTE FROM measured_at)::int % $3 * INTERVAL '1 minute') AS bucket,
-       AVG(download_mbps)::numeric(8,2) AS avg_download_mbps,
-       AVG(upload_mbps)::numeric(8,2) AS avg_upload_mbps,
-       AVG(ping_ms)::numeric(6,1) AS avg_ping_ms,
-       AVG(ap_count)::numeric(5,1) AS avg_ap_count,
-       AVG(avg_signal)::numeric(5,1) AS avg_signal_dbm,
-       COUNT(*)::int AS sample_count
-     FROM measurements_recent
-     WHERE device_id = $1
-       AND measured_at > NOW() - ($2 || ' hours')::interval
-     GROUP BY bucket
-     ORDER BY bucket DESC`,
-    [deviceId, clampedHours, clampedBucket]
-  );
-
-  return {
-    device_id: deviceId,
-    hours_requested: clampedHours,
-    bucket_minutes: clampedBucket,
-    data_points: result.rows.length,
-    timeseries: result.rows,
-  };
+  return { device_id: deviceId, hours_requested: clampedHours, bucket_minutes: clampedBucket, data_points: rows.length, timeseries: rows };
 }
 
-// ---------------------------------------------------------------------------
-// Helper
-// ---------------------------------------------------------------------------
-
-async function verifyDeviceTenant(
-  deviceId: string,
-  tenantId: string
-): Promise<boolean> {
-  const result = await db.query(
-    `SELECT 1 FROM devices WHERE device_id = $1 AND tenant_id = $2 LIMIT 1`,
-    [deviceId, tenantId]
-  );
-  return result.rows.length > 0;
+async function verifyDeviceTenant(deviceId: string, tenantId: string): Promise<boolean> {
+  const rows = await sql`
+    SELECT 1 FROM devices WHERE device_id = ${deviceId} AND tenant_id = ${tenantId} LIMIT 1
+  ` as any[];
+  return rows.length > 0;
 }
