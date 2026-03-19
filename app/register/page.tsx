@@ -348,7 +348,7 @@ export default function RegisterPage() {
                 <h2>Check your email</h2>
                 <p>We sent a verification link to:</p>
                 <div className="rp-sent-chip">{sentEmail}</div>
-                <p>Click the link to verify your address and set up two-factor authentication. It expires in 24 hours.</p>
+                <p>Click the link to verify your email address and activate your account. It expires in 24 hours.</p>
                 <div className="rp-sent-note">
                   Check your spam folder if you don't see it.<br />
                   Wrong email? <Link href="/register">Start over</Link>

@@ -221,6 +221,9 @@ export default function MfaSetupPage() {
                     <button className="mfa-btn-pri" onClick={() => setStep("verify")}>
                       I'VE SCANNED IT — CONTINUE →
                     </button>
+                    <button className="mfa-btn-sec" style={{marginTop:10}} onClick={() => window.location.href = "/settings/devices"}>
+                      SKIP FOR NOW — SET UP LATER
+                    </button>
                   </div>
                 )}
 

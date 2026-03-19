@@ -1,0 +1,11 @@
+# ValleLogic Device Identity
+# Generated: 2026-03-19T01:51:44Z
+# DO NOT EDIT — regenerate via provision.py if needed
+
+DEVICE_ID=nr-7478e36f-1302-45a0-bd69-177d0e846b02
+NR_SERIAL=NR-E642-68A0
+DEVICE_KEY=vl_a7a72a46ffffb58267df8f72059d4bb49e6199c75038c7995092e2702924d749
+IMAGE_VERSION=1.0.0
+CLOUD_BASE=https://app.vallelogic.com
+TENANT_ID=
+CLAIMED=false

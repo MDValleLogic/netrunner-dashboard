@@ -24,13 +24,7 @@ function LoginContent() {
       setErr("Invalid email or password");
       return;
     }
-    // Check MFA status — redirect to setup if not yet enabled
-    const me = await fetch("/api/auth/me").then(r => r.json());
-    if (me?.mfa_enabled === false) {
-      window.location.href = "/mfa-setup";
-    } else {
-      window.location.href = "/settings/devices";
-    }
+    window.location.href = "/settings/devices";
   }
 
   return (
