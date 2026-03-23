@@ -46,7 +46,7 @@ export default function BLERunnerHistory() {
       setLoading(true);
       try {
         const params = new URLSearchParams({ hours: String(hours) });
-        if (selectedDevice) params.set("device_id", selectedDevice);
+        if (selectedDevice) params.set("device_id", selectedDevice.device_id);
         const res = await fetch(`/api/blerunner/history?${params}`);
         const data = await res.json();
         setHourly(data.hourly ?? []);

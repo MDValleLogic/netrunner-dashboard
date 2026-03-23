@@ -62,8 +62,8 @@ export default function BLERunnerOverview() {
     async function fetch24h() {
       setLoading(true);
       try {
-        const liveParams = selectedDevice ? `?device_id=${selectedDevice}` : "";
-        const histParams = selectedDevice ? `?device_id=${selectedDevice}&hours=24` : "?hours=24";
+        const liveParams = selectedDevice ? `?device_id=${selectedDevice.device_id}` : "";
+        const histParams = selectedDevice ? `?device_id=${selectedDevice.device_id}&hours=24` : "?hours=24";
         const [liveRes, histRes] = await Promise.all([
           fetch(`/api/blerunner/live${liveParams}`),
           fetch(`/api/blerunner/history${histParams}`),

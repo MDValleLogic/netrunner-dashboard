@@ -55,7 +55,7 @@ export default function BLERunnerLive() {
 
   async function fetchLive() {
     try {
-      const params = selectedDevice ? `?device_id=${selectedDevice}` : "";
+      const params = selectedDevice ? `?device_id=${selectedDevice.device_id}` : "";
       const res = await fetch(`/api/blerunner/live${params}`);
       const data = await res.json();
       setScans(data.scans ?? []);
