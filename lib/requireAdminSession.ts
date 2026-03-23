@@ -3,9 +3,9 @@ import { authOptions } from "@/lib/authOptions";
 import { neon } from "@neondatabase/serverless";
 import { NextResponse } from "next/server";
 
-export async function requireAdminSession(): Promise
-  { session: Awaited<ReturnType<typeof getServerSession>>; email: string } | NextResponse
-> {
+type AdminResult = { session: any; email: string } | NextResponse;
+
+export async function requireAdminSession(): Promise<AdminResult> {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.email) {
