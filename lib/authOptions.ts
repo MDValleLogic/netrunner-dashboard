@@ -19,7 +19,7 @@ export const authOptions: NextAuthOptions = {
         if (!email || !password) return null;
 
         const rows = await sql`
-          select id, email, name, tenant_id, password_hash, email_verified, mfa_enabled
+          select id, email, name, tenant_id, password_hash, email_verified, mfa_enabled, is_admin
           from app_users
           where email = ${email}
           limit 1
@@ -38,6 +38,7 @@ export const authOptions: NextAuthOptions = {
           name:       u.name ?? "",
           tenantId:   u.tenant_id,
           mfaEnabled: u.mfa_enabled,
+          isAdmin:    u.is_admin ?? false,
         } as any;
       },
     }),
@@ -48,6 +49,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         (token as any).tenantId   = (user as any).tenantId;
         (token as any).mfaEnabled = (user as any).mfaEnabled;
+        (token as any).isAdmin    = (user as any).isAdmin;
         token.name = (user as any).name ?? token.name;
       }
       return token;
@@ -55,6 +57,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       (session.user as any).tenantId   = (token as any).tenantId;
       (session.user as any).mfaEnabled = (token as any).mfaEnabled;
+      (session.user as any).isAdmin    = (token as any).isAdmin;
       return session;
     },
   },

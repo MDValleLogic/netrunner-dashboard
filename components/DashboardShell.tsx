@@ -2,10 +2,9 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { useDevice } from "@/lib/deviceContext";
-import DevicePicker from "@/components/DevicePicker";
 
 const Icon = {
   grid: () => (<svg className="vl-nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>),
@@ -28,29 +27,29 @@ const NAV = [
     { href: "/devices/map", label: "NOC View", icon: "map" },
   ]},
   { section: "WebRunner", links: [
-    { href: "/webrunner/overview", label: "Overview",      icon: "grid"     },
-    { href: "/webrunner/live",    label: "Live Feed",     icon: "activity" },
-    { href: "/webrunner/history", label: "History",       icon: "clock"    },
-    { href: "/webrunner/config",  label: "Config",        icon: "settings" },
+    { href: "/webrunner/overview", label: "Overview",  icon: "grid"     },
+    { href: "/webrunner/live",     label: "Live Feed", icon: "activity" },
+    { href: "/webrunner/history",  label: "History",   icon: "clock"    },
+    { href: "/webrunner/config",   label: "Config",    icon: "settings" },
   ]},
   { section: "ROUTERUNNER", links: [
-    { href: "/routerunner/overview", label: "Overview",    icon: "route"    },
-    { href: "/routerunner/live",     label: "Live Feed",   icon: "activity" },
-    { href: "/routerunner/history",  label: "History",     icon: "clock"    },
-    { href: "/routerunner/config",   label: "Config",      icon: "settings" },
+    { href: "/routerunner/overview", label: "Overview",  icon: "route"    },
+    { href: "/routerunner/live",     label: "Live Feed", icon: "activity" },
+    { href: "/routerunner/history",  label: "History",   icon: "clock"    },
+    { href: "/routerunner/config",   label: "Config",    icon: "settings" },
   ]},
   { section: "SPEEDRUNNER", links: [
-    { href: "/speedrunner/overview", label: "Overview",    icon: "zap"      },
-    { href: "/speedrunner/live",     label: "Live Feed",   icon: "activity" },
-    { href: "/speedrunner/history",  label: "History",     icon: "clock"    },
-    { href: "/speedrunner/config",   label: "Config",      icon: "settings" },
+    { href: "/speedrunner/overview", label: "Overview",  icon: "zap"      },
+    { href: "/speedrunner/live",     label: "Live Feed", icon: "activity" },
+    { href: "/speedrunner/history",  label: "History",   icon: "clock"    },
+    { href: "/speedrunner/config",   label: "Config",    icon: "settings" },
   ]},
   { section: "RFRUNNER", links: [
-    { href: "/rfrunner/overview", label: "Overview",  icon: "wifi"     },
-    { href: "/rfrunner/live",     label: "Live Feed", icon: "activity" },
-    { href: "/rfrunner/history",  label: "History",   icon: "clock"    },
+    { href: "/rfrunner/overview", label: "Overview",    icon: "wifi"     },
+    { href: "/rfrunner/live",     label: "Live Feed",   icon: "activity" },
+    { href: "/rfrunner/history",  label: "History",     icon: "clock"    },
     { href: "/rfrunner/active",   label: "Active Mode", icon: "shield"   },
-    { href: "/rfrunner/config",   label: "Config",    icon: "settings" },
+    { href: "/rfrunner/config",   label: "Config",      icon: "settings" },
   ]},
   { section: "COMMANDRUNNER", links: [
     { href: "/commandrunner", label: "AI Query", icon: "terminal" },
@@ -59,11 +58,72 @@ const NAV = [
     { href: "/stormrunner", label: "StormRunner", icon: "storm", phase: "P3", disabled: true },
   ]},
   { section: "System", links: [
-    { href: "/settings/devices", label: "Device Setup", icon: "cpu"      },
-    { href: "/settings/users",   label: "Users",        icon: "users"    },
-    { href: "/settings/storage", label: "Storage & Data", icon: "clock"  },
+    { href: "/settings/devices",  label: "Device Setup",  icon: "cpu"   },
+    { href: "/settings/users",    label: "Users",         icon: "users" },
+    { href: "/settings/storage",  label: "Storage & Data",icon: "clock" },
   ]},
 ];
+
+function ModeSwitcher() {
+  const { data: session } = useSession();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  if (!(session?.user as any)?.isAdmin) return null;
+
+  const isOverlord = pathname?.startsWith("/admin");
+
+  return (
+    <div style={{ padding: "8px 10px 4px", borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 4 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", marginBottom: 6, paddingLeft: 4 }}>
+        Mode
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <button
+          onClick={() => router.push("/admin")}
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "7px 10px", borderRadius: 8, border: "none",
+            cursor: "pointer", fontSize: 12, fontWeight: 600,
+            fontFamily: "inherit", textAlign: "left", width: "100%",
+            background: isOverlord ? "linear-gradient(135deg, #5b21b6, #4c1d95)" : "rgba(255,255,255,0.04)",
+            color: isOverlord ? "#fff" : "rgba(255,255,255,0.45)",
+            boxShadow: isOverlord ? "0 2px 12px rgba(139,92,246,0.3)" : "none",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <span style={{ fontSize: 14 }}>⚡</span>
+          <span style={{ flex: 1 }}>Overlord</span>
+          {isOverlord && (
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", padding: "2px 5px", borderRadius: 4, background: "rgba(255,255,255,0.15)", color: "#fff" }}>
+              ACTIVE
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => router.push("/dashboard")}
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "7px 10px", borderRadius: 8, border: "none",
+            cursor: "pointer", fontSize: 12, fontWeight: 600,
+            fontFamily: "inherit", textAlign: "left", width: "100%",
+            background: !isOverlord ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
+            color: !isOverlord ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.45)",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <span style={{ fontSize: 14 }}>📡</span>
+          <span style={{ flex: 1 }}>My Dashboard</span>
+          {!isOverlord && (
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", padding: "2px 5px", borderRadius: 4, background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}>
+              ACTIVE
+            </span>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -79,6 +139,8 @@ export default function DashboardShell({ children }: { children: React.ReactNode
         <div className="vl-sidebar-logo">
           <img src="/vallelogic-logo-white.png" alt="ValleLogic" style={{ width: "85%", maxWidth: 160, margin: "0 auto", display: "block" }} />
         </div>
+
+        <ModeSwitcher />
 
         <nav className="vl-nav" style={{ flex: 1 }}>
           {NAV.map((group) => (
