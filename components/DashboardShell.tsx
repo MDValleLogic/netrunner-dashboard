@@ -54,6 +54,11 @@ const NAV = [
   { section: "COMMANDRUNNER", links: [
     { href: "/commandrunner", label: "AI Query", icon: "terminal" },
   ]},
+  { section: "BLERUNNER", links: [
+    { href: "/blerunner/overview", label: "Overview",  icon: "wifi"     },
+    { href: "/blerunner/live",     label: "Live Feed", icon: "activity" },
+    { href: "/blerunner/history",  label: "History",   icon: "clock"    },
+  ]},
   { section: "Coming Soon", links: [
     { href: "/stormrunner", label: "StormRunner", icon: "storm", phase: "P3", disabled: true },
   ]},
@@ -196,3 +201,4 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     </div>
   );
 }
+// BLERunner nav patch — ignore this, applied via sed below
