@@ -51,7 +51,7 @@ export default function BLERunnerLive() {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [filter, setFilter] = useState("");
-  const intervalRef = useRef<NodeJS.Timeout>();
+  const intervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   async function fetchLive() {
     try {
