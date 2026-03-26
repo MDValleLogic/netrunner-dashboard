@@ -23,6 +23,9 @@ const Icon = {
 };
 
 const NAV = [
+  { section: "AI OPERATIONS", links: [
+    { href: "/commandrunner", label: "CommandRunner", icon: "terminal", highlight: true },
+  ]},
   { section: "NetRunner NOC", links: [
     { href: "/devices/map", label: "NOC View", icon: "map" },
   ]},
@@ -50,9 +53,6 @@ const NAV = [
     { href: "/rfrunner/history",  label: "History",     icon: "clock"    },
     { href: "/rfrunner/active",   label: "Active Mode", icon: "shield"   },
     { href: "/rfrunner/config",   label: "Config",      icon: "settings" },
-  ]},
-  { section: "COMMANDRUNNER", links: [
-    { href: "/commandrunner", label: "AI Query", icon: "terminal" },
   ]},
   { section: "BLERUNNER", links: [
     { href: "/blerunner/overview", label: "Overview",  icon: "wifi"     },
