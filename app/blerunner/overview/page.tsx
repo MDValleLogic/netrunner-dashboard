@@ -227,7 +227,7 @@ export default function BLERunnerOverview() {
                 <YAxis tick={{ fontSize: 9, fill: "#6b7280" }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip
                   contentStyle={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, fontSize: 11 }}
-                  labelFormatter={fmtHour}
+                  labelFormatter={(label) => fmtHour(String(label))}
                   labelStyle={{ color: "#e5e7eb" }}
                   itemStyle={{ color: "#9ca3af" }}
                 />
