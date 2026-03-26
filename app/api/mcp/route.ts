@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateMCPKey } from "@/lib/mcp/auth";
-import { MCP_TOOLS, dispatchTool } from "@/lib/mcp/tools";
+import { MCP_TOOLS, dispatchTool, dispatchToolExtended } from "@/lib/mcp/tools";
 
 // ---------------------------------------------------------------------------
 // MCP Protocol Constants
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        const result = await dispatchTool(toolName, toolArgs, auth.tenantId);
+        const result = await dispatchToolExtended(toolName, toolArgs, auth.tenantId);
 
         return rpcSuccess(id, {
           content: [
