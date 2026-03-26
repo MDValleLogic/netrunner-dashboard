@@ -197,7 +197,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           </button>
         </div>
       </aside>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>{children}</div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, background: "#030712" }}>{children}</div>
     </div>
   );
 }
