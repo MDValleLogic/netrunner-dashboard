@@ -1,12 +1,10 @@
 "use client";
-
-import { useEffect, useState } from "react";
-import DashboardShell from "@/components/DashboardShell";
 import { useDevice } from "@/lib/deviceContext";
+import React, { useEffect, useState } from "react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
 
 type HourlyBucket = {
   hour_utc: string;
-  device_id: string;
   unique_devices: number;
   avg_rssi: number | null;
   new_devices: number;
@@ -25,16 +23,21 @@ type TopDevice = {
 
 type TopMfr = { manufacturer: string; device_count: number };
 
-function fmt(ts: string) {
+function fmtHour(ts: string) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
-
 function fmtDate(ts: string) {
   return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+function rssiColor(rssi: number | null): string {
+  if (rssi === null) return "#6b7280";
+  if (rssi > -60) return "#22c55e";
+  if (rssi > -75) return "#f59e0b";
+  return "#ef4444";
+}
 
 export default function BLERunnerHistory() {
-  const { selectedDevice } = useDevice();
+  const { selectedDeviceId, devices, setSelectedDeviceId } = useDevice();
   const [hours, setHours] = useState(24);
   const [hourly, setHourly] = useState<HourlyBucket[]>([]);
   const [topDevices, setTopDevices] = useState<TopDevice[]>([]);
@@ -46,137 +49,190 @@ export default function BLERunnerHistory() {
       setLoading(true);
       try {
         const params = new URLSearchParams({ hours: String(hours) });
-        if (selectedDevice) params.set("device_id", selectedDevice.device_id);
+        if (selectedDeviceId) params.set("device_id", selectedDeviceId);
         const res = await fetch(`/api/blerunner/history?${params}`);
         const data = await res.json();
         setHourly(data.hourly ?? []);
         setTopDevices(data.topDevices ?? []);
         setTopMfrs(data.topManufacturers ?? []);
-      } catch (err) {
-        console.error(err);
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [hours, selectedDevice]);
+  }, [hours, selectedDeviceId]);
 
-  const maxDevices = Math.max(...hourly.map((h) => h.unique_devices), 1);
+  const peakHour = hourly.reduce((a, b) => a.unique_devices > b.unique_devices ? a : b, hourly[0]);
+  const totalSightings = topDevices.reduce((a, b) => a + b.sightings, 0);
+  const avgDevicesPerHour = hourly.length ? Math.round(hourly.reduce((a, b) => a + b.unique_devices, 0) / hourly.length) : 0;
 
   return (
-    <DashboardShell>
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">🔵 BLERunner — History</h1>
-            <p className="text-zinc-500 text-sm mt-0.5">Hourly aggregated BLE presence data</p>
+    <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6 max-w-6xl">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <span className="text-xl">🔵</span>
           </div>
-          <div className="flex gap-2">
-            {[6, 24, 48, 168].map((h) => (
+          <div>
+            <h1 className="text-lg font-semibold text-gray-100 leading-tight">BLERunner — History</h1>
+            <p className="text-xs text-gray-500 font-mono">Hourly aggregated BLE presence data</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <select
+            value={selectedDeviceId || ""}
+            onChange={e => setSelectedDeviceId(e.target.value)}
+            style={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#e5e7eb", padding: "6px 10px", fontSize: 12, fontFamily: "monospace" }}
+          >
+            {devices.map(d => (
+              <option key={d.device_id} value={d.device_id}>
+                {d.nickname ? `${d.nickname} (${d.nr_serial})` : d.nr_serial}
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-1">
+            {[6, 24, 48, 168].map(h => (
               <button key={h} onClick={() => setHours(h)}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                  hours === h
-                    ? "bg-blue-600 border-blue-600 text-white"
-                    : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-zinc-200"
-                }`}>
+                className="text-xs px-3 py-1.5 rounded-lg border font-mono transition-colors"
+                style={{
+                  background: hours === h ? "#1d4ed8" : "#111827",
+                  borderColor: hours === h ? "#1d4ed8" : "#374151",
+                  color: hours === h ? "#fff" : "#9ca3af",
+                }}>
                 {h < 48 ? `${h}h` : `${h / 24}d`}
               </button>
             ))}
           </div>
         </div>
+      </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-zinc-400 mb-4">Unique BLE Devices per Hour</h2>
-          {hourly.length === 0 && !loading && (
-            <p className="text-zinc-600 text-xs text-center py-8">No history data yet</p>
-          )}
-          {hourly.length > 0 && (
-            <>
-              <div className="flex items-end gap-0.5 h-24">
-                {hourly.map((h, i) => {
-                  const pct = (h.unique_devices / maxDevices) * 100;
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center justify-end group relative"
-                      title={`${fmt(h.hour_utc)}: ${h.unique_devices} devices`}>
-                      <div className="w-full bg-blue-500/70 hover:bg-blue-400 rounded-sm transition-colors"
-                        style={{ height: `${Math.max(pct, 2)}%` }} />
-                      <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10">
-                        {fmt(h.hour_utc)}: {h.unique_devices} devices<br />
-                        <span className="text-green-400">{h.new_devices} new</span> · <span className="text-zinc-400">{h.returning_devices} returning</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex justify-between text-xs text-zinc-600 mt-2">
-                <span>{fmtDate(hourly[0].hour_utc)}</span>
-                <span>{fmtDate(hourly[hourly.length - 1].hour_utc)}</span>
-              </div>
-            </>
+      <div className="max-w-6xl space-y-5">
+
+        {/* Summary stats */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Avg Devices/Hour", value: loading ? "—" : avgDevicesPerHour, color: "#60a5fa" },
+            { label: "Peak Hour Devices", value: loading || !peakHour ? "—" : peakHour.unique_devices, color: "#22c55e" },
+            { label: "Total Sightings", value: loading ? "—" : totalSightings.toLocaleString(), color: "#e5e7eb" },
+          ].map(c => (
+            <div key={c.label} className="rounded-lg border border-gray-700/60 px-4 py-4 bg-gray-900/60">
+              <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-2">{c.label}</div>
+              <div className="text-2xl font-bold font-mono" style={{ color: c.color }}>{c.value}</div>
+              {c.label === "Peak Hour Devices" && peakHour && !loading && (
+                <div className="text-[10px] text-gray-600 font-mono mt-1">{fmtDate(peakHour.hour_utc)}</div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Presence timeline */}
+        <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm font-semibold text-gray-200">Device Presence Timeline</div>
+            <div className="flex items-center gap-4 text-xs text-gray-500 font-mono">
+              <span><span className="inline-block w-2 h-2 rounded-full bg-blue-400 mr-1"/>Total</span>
+              <span><span className="inline-block w-2 h-2 rounded-full bg-green-400 mr-1"/>New</span>
+              <span><span className="inline-block w-2 h-2 rounded-full bg-yellow-400 mr-1"/>Returning</span>
+            </div>
+          </div>
+          {hourly.length === 0 && !loading ? (
+            <p className="text-xs text-gray-600 text-center py-8 font-mono">No history data for this period</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={hourly} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
+                <defs>
+                  <linearGradient id="totalGrad2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#60a5fa" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="newGrad2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="hour_utc" tickFormatter={fmtHour} tick={{ fontSize: 9, fill: "#6b7280" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 9, fill: "#6b7280" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, fontSize: 11 }}
+                  labelFormatter={fmtDate}
+                  labelStyle={{ color: "#e5e7eb" }}
+                  itemStyle={{ color: "#9ca3af" }}
+                />
+                <Area type="monotone" dataKey="unique_devices" name="Total" stroke="#60a5fa" fill="url(#totalGrad2)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="new_devices" name="New" stroke="#22c55e" fill="url(#newGrad2)" strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="returning_devices" name="Returning" stroke="#f59e0b" fill="none" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+              </AreaChart>
+            </ResponsiveContainer>
           )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-zinc-800">
-              <h2 className="text-sm font-semibold text-zinc-300">Persistent Devices</h2>
-              <p className="text-xs text-zinc-600 mt-0.5">Most frequently seen — likely local or owned</p>
+        <div className="grid grid-cols-3 gap-4">
+
+          {/* Persistent devices */}
+          <div className="col-span-2 rounded-lg border border-gray-700/60 bg-gray-900/60 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-700/40">
+              <div className="text-sm font-semibold text-gray-200">Persistent Devices</div>
+              <div className="text-[10px] text-gray-600 font-mono mt-0.5">Most frequently seen — likely local or owned</div>
             </div>
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-zinc-800 text-zinc-500 text-xs uppercase tracking-wider">
+                <tr className="border-b border-gray-700/40 text-gray-500 uppercase tracking-wider">
                   <th className="px-4 py-2 text-left">MAC</th>
                   <th className="px-4 py-2 text-left">Name</th>
                   <th className="px-4 py-2 text-left">Vendor</th>
+                  <th className="px-4 py-2 text-left">Avg Signal</th>
                   <th className="px-4 py-2 text-right">Sightings</th>
-                  <th className="px-4 py-2 text-left">First / Last</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/50">
+              <tbody className="divide-y divide-gray-700/20">
                 {topDevices.length === 0 && !loading && (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-600 text-xs">No data for this period</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-600 font-mono">No data for this period</td></tr>
                 )}
-                {topDevices.map((d) => (
-                  <tr key={d.mac} className="hover:bg-zinc-800/30">
-                    <td className="px-4 py-2 font-mono text-xs text-zinc-200">{d.mac}</td>
-                    <td className="px-4 py-2 text-xs text-zinc-300">{d.name ?? <span className="text-zinc-600">—</span>}</td>
-                    <td className="px-4 py-2 text-xs text-zinc-400">{d.manufacturer ?? <span className="text-zinc-600">Unknown</span>}</td>
-                    <td className="px-4 py-2 text-right font-mono text-xs text-blue-400">{d.sightings}</td>
-                    <td className="px-4 py-2 text-xs text-zinc-500">{fmtDate(d.first_seen)} → {fmtDate(d.last_seen)}</td>
+                {topDevices.slice(0, 12).map(d => (
+                  <tr key={d.mac} className="hover:bg-gray-800/30">
+                    <td className="px-4 py-2 font-mono text-gray-300">{d.mac}</td>
+                    <td className="px-4 py-2 text-gray-300">{d.name ?? <span className="text-gray-600">—</span>}</td>
+                    <td className="px-4 py-2 text-gray-500">{d.manufacturer ?? <span className="text-gray-600">Unknown</span>}</td>
+                    <td className="px-4 py-2 font-mono font-semibold" style={{ color: rssiColor(Math.round(d.avg_rssi)) }}>
+                      {Math.round(d.avg_rssi)} dBm
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono text-blue-400">{d.sightings}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-zinc-800">
-              <h2 className="text-sm font-semibold text-zinc-300">Manufacturers</h2>
+          {/* Manufacturer breakdown */}
+          <div className="rounded-lg border border-gray-700/60 bg-gray-900/60 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-700/40">
+              <div className="text-sm font-semibold text-gray-200">Manufacturers</div>
             </div>
-            <div className="p-4 space-y-3">
-              {topMfrs.length === 0 && !loading && (
-                <p className="text-zinc-600 text-xs text-center py-4">No data</p>
-              )}
-              {topMfrs.map((m, i) => {
-                const max = topMfrs[0]?.device_count ?? 1;
-                const pct = Math.round((m.device_count / max) * 100);
-                return (
-                  <div key={m.manufacturer}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-zinc-300 truncate">{m.manufacturer}</span>
-                      <span className="text-zinc-500 ml-2 tabular-nums">{m.device_count}</span>
-                    </div>
-                    <div className="h-1.5 bg-zinc-800 rounded-full">
-                      <div className="h-full bg-blue-500 rounded-full"
-                        style={{ width: `${pct}%`, opacity: 1 - i * 0.08 }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            {topMfrs.length === 0 && !loading ? (
+              <p className="text-xs text-gray-600 text-center py-8 font-mono">No data</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={topMfrs} layout="vertical" margin={{ top: 12, right: 16, bottom: 8, left: 8 }}>
+                  <XAxis type="number" tick={{ fontSize: 9, fill: "#6b7280" }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="manufacturer" tick={{ fontSize: 9, fill: "#9ca3af" }} axisLine={false} tickLine={false} width={70} />
+                  <Tooltip
+                    contentStyle={{ background: "#111827", border: "1px solid #374151", borderRadius: 6, fontSize: 11 }}
+                    labelStyle={{ color: "#e5e7eb" }}
+                    itemStyle={{ color: "#9ca3af" }}
+                  />
+                  <Bar dataKey="device_count" name="Devices" radius={[0, 4, 4, 0]}>
+                    {topMfrs.map((_, i) => (
+                      <Cell key={i} fill={`rgba(96,165,250,${1 - i * 0.08})`} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
-    </DashboardShell>
+    </div>
   );
 }
