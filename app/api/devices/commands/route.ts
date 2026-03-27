@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { verifyMcpAuth } from "@/lib/mcp/auth";
 import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
 
 export async function POST(req: NextRequest) {
   try {
-    const { tenantId } = await requireTenantSession();
+    let tenantId: string;
+
+    // Accept either MCP bearer token OR NextAuth session
+    const authHeader = req.headers.get("authorization") ?? "";
+    if (authHeader.startsWith("Bearer ")) {
+      const auth = await verifyMcpAuth(req);
+      if (!auth) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+      tenantId = auth.tenantId;
+    } else {
+      const session = await requireTenantSession();
+      tenantId = session.tenantId;
+    }
+
     const { device_id, command_type, payload = {} } = await req.json();
 
     if (!device_id || !command_type) {
