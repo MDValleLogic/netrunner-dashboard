@@ -58,7 +58,7 @@ export async function GET() {
           'verified'      AS event_type,
           u.email,
           t.name          AS tenant_name,
-          u.updated_at    AS event_at,
+          u.created_at    AS event_at,
           NULL            AS device_id
         FROM   app_users u
         JOIN   tenants t ON t.id = u.tenant_id
@@ -68,11 +68,11 @@ export async function GET() {
       `,
       sql`
         SELECT
-          (SELECT COUNT(*) FROM tenants)                                    AS total_tenants,
-          (SELECT COUNT(*) FROM devices)                                    AS total_devices,
-          (SELECT COUNT(*) FROM devices WHERE status = 'online')            AS online_devices,
-          (SELECT COUNT(*) FROM app_users)                                  AS total_users,
-          (SELECT COUNT(*) FROM app_users WHERE email_verified = true)      AS verified_users
+          (SELECT COUNT(*) FROM tenants)                                AS total_tenants,
+          (SELECT COUNT(*) FROM devices)                                AS total_devices,
+          (SELECT COUNT(*) FROM devices WHERE status = 'online')        AS online_devices,
+          (SELECT COUNT(*) FROM app_users)                              AS total_users,
+          (SELECT COUNT(*) FROM app_users WHERE email_verified = true)  AS verified_users
       `,
     ]);
 
