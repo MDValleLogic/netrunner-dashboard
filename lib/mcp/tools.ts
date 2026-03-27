@@ -9,7 +9,6 @@ export interface MCPTool {
     required?: string[];
   };
 }
-
 export const MCP_TOOLS: MCPTool[] = [
   {
     name: "list_devices",
@@ -91,6 +90,30 @@ export const MCP_TOOLS: MCPTool[] = [
         device_id: { type: "string", description: "The device ID." },
         hours: { type: "number", description: "Hours of history. Defaults to 24. Max 168." },
         bucket_minutes: { type: "number", description: "Bucket size in minutes. Defaults to 60." },
+      },
+      required: ["device_id"],
+    },
+  },
+  {
+    name: "queue_command",
+    description: "Queue a command to be executed on a NetRunner device on its next heartbeat. Supports run_script, update_file, restart_service, reboot.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        device_id: { type: "string", description: "The NetRunner device ID." },
+        command_type: { type: "string", enum: ["run_script", "update_file", "restart_service", "reboot"], description: "Type of command to execute." },
+        payload: { type: "object", description: "Command payload. run_script: {script}, update_file: {path, content}, restart_service: {service_name}, reboot: {}" },
+      },
+      required: ["device_id", "command_type"],
+    },
+  },
+  {
+    name: "get_pending_commands",
+    description: "Get pending, executing, complete, and failed commands for a NetRunner device.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        device_id: { type: "string", description: "The NetRunner device ID." },
       },
       required: ["device_id"],
     },
@@ -549,6 +572,34 @@ MCP_TOOLS.push(...BLE_TOOLS, ...RF_EXTRA_TOOLS, ...NOC_TOOLS, ...ROUTER_EXTRA_TO
 // ── Extended dispatchTool — replaces the default throw ──────────────────────
 // Patch: re-export a wrapped dispatcher that handles new tools
 const _originalDispatch = dispatchTool;
+
+// ── Pending Commands ─────────────────────────────────────────────────────────
+
+async function queueCommand(deviceId: string, tenantId: string, args: Record<string, unknown>) {
+  if (!(await verifyDeviceTenant(deviceId, tenantId))) return { error: `Device ${deviceId} not found.` };
+  const { command_type, payload = {} } = args;
+  const valid = ["run_script", "update_file", "restart_service", "reboot"];
+  if (!valid.includes(command_type as string)) return { error: "invalid command_type" };
+  const rows = await sql`
+    INSERT INTO pending_commands (device_id, tenant_id, command_type, payload)
+    VALUES (${deviceId}, ${tenantId}, ${command_type as string}, ${JSON.stringify(payload)})
+    RETURNING id, status, created_at
+  ` as any[];
+  return { ok: true, command: rows[0] };
+}
+
+async function getPendingCommands(deviceId: string, tenantId: string) {
+  if (!(await verifyDeviceTenant(deviceId, tenantId))) return { error: `Device ${deviceId} not found.` };
+  const rows = await sql`
+    SELECT id, command_type, payload, status, created_at, executed_at, completed_at
+    FROM pending_commands
+    WHERE device_id = ${deviceId}
+    ORDER BY created_at DESC
+    LIMIT 20
+  ` as any[];
+  return { ok: true, device_id: deviceId, commands: rows };
+}
+
 export async function dispatchToolExtended(
   toolName: string,
   args: Record<string, unknown>,
@@ -582,6 +633,8 @@ export async function dispatchToolExtended(
     case "set_webrunner_config":    return setWebrunnerConfig(args.device_id as string, tenantId, args);
     case "get_webrunner_live":      return getWebrunnerLive(args.device_id as string, tenantId);
     // Fall through to original
+    case "queue_command": return queueCommand(args.device_id as string, tenantId, args);
+    case "get_pending_commands": return getPendingCommands(args.device_id as string, tenantId);
     default: return _originalDispatch(toolName, args, tenantId);
   }
 }
