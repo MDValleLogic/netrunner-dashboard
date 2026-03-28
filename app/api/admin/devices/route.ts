@@ -12,15 +12,15 @@ export async function GET() {
 
   const devices = await sql`
     SELECT
-      d.id                  AS device_id,
-      d.name                AS device_name,
+      d.device_id,
+      d.nickname            AS device_name,
+      d.nr_serial,
       d.status,
-      d.ip_address,
+      d.last_ip             AS ip_address,
       d.last_seen,
       d.agent_version,
       d.claimed_at,
       d.created_at,
-      d.cpu_id,
       t.id                  AS tenant_id,
       t.name                AS tenant_name,
       u.email               AS owner_email,
@@ -32,8 +32,8 @@ export async function GET() {
       END                   AS computed_status,
       EXTRACT(EPOCH FROM (NOW() - d.last_seen)) AS seconds_since_heartbeat
     FROM   devices d
-    JOIN   tenants   t ON t.id = d.tenant_id
-    LEFT   JOIN app_users u ON u.tenant_id = t.id
+    LEFT JOIN tenants   t ON t.id = d.tenant_id
+    LEFT JOIN app_users u ON u.tenant_id = t.id
     ORDER  BY d.last_seen DESC NULLS LAST
   `;
 
