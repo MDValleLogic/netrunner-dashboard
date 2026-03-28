@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateMCPKey } from "@/lib/mcp/auth";
+import { sql } from "@/lib/db";
 import { MCP_TOOLS, dispatchTool, dispatchToolExtended } from "@/lib/mcp/tools";
 
 // ---------------------------------------------------------------------------
