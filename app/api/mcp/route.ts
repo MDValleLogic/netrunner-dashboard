@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
         if (!device_id || !command_type) return rpcError(id, -32602, "missing device_id or command_type");
         const rows = await sql`
           INSERT INTO pending_commands (device_id, tenant_id, command_type, payload)
-          VALUES (${device_id}, ${tenantId}, ${command_type}, ${JSON.stringify(payload)})
+          VALUES (${device_id}, ${auth.tenantId}, ${command_type}, ${JSON.stringify(payload)})
           RETURNING id, status, created_at
         ` as any[];
         return rpcResult(id, { ok: true, command: rows[0] });
