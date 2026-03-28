@@ -5,7 +5,7 @@ import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     let tenantId: string;
@@ -23,7 +23,7 @@ export async function POST(
       closedBy = session.user?.email ?? "unknown";
     }
 
-    const deviceId = params.id;
+    const { id: deviceId } = await params;
     const body = await req.json().catch(() => ({}));
     const reason = body.reason ?? "user_revoked";
 

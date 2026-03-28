@@ -5,7 +5,7 @@ import { requireTenantSession, AuthError } from "@/lib/requireTenantSession";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     let tenantId: string;
@@ -20,7 +20,7 @@ export async function GET(
       tenantId = session.tenantId;
     }
 
-    const deviceId = params.id;
+    const { id: deviceId } = await params;
 
     // Get device remote access state
     const devices = await sql`
