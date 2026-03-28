@@ -14,9 +14,9 @@ export async function GET() {
     await Promise.all([
       sql`
         SELECT
-          d.id              AS device_id,
-          d.name            AS device_name,
-          d.ip_address,
+          d.device_id,
+          d.nickname        AS device_name,
+          d.last_ip         AS ip_address,
           d.last_seen,
           d.agent_version,
           t.name            AS tenant_name,
@@ -31,8 +31,8 @@ export async function GET() {
       `,
       sql`
         SELECT
-          d.id              AS device_id,
-          d.name            AS device_name,
+          d.device_id,
+          d.nickname        AS device_name,
           t.name            AS tenant_name,
           u.email           AS owner_email,
           d.last_seen,
@@ -45,17 +45,17 @@ export async function GET() {
       `,
       sql`
         SELECT
-          d.id              AS device_id,
-          d.name            AS device_name,
+          d.device_id,
+          d.nickname        AS device_name,
           t.name            AS tenant_name,
           COUNT(*)          AS failure_count,
           MAX(s.created_at) AS last_failure
         FROM   rf_scans s
-        JOIN   devices d ON d.id = s.device_id
+        JOIN   devices d ON d.device_id = s.device_id
         JOIN   tenants t ON t.id = d.tenant_id
         WHERE  s.status = 'error'
           AND  s.created_at > NOW() - INTERVAL '24 hours'
-        GROUP  BY d.id, d.name, t.name
+        GROUP  BY d.device_id, d.nickname, t.name
         ORDER  BY failure_count DESC
         LIMIT  20
       `.catch(() => []),
