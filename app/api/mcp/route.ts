@@ -149,6 +149,37 @@ export async function POST(req: NextRequest) {
         });
       }
 
+
+      // -----------------------------------------------------------------------
+      // queue_command
+      // -----------------------------------------------------------------------
+      case "queue_command": {
+        const { device_id, command_type, payload = {} } = params;
+        if (!device_id || !command_type) return rpcError(id, -32602, "missing device_id or command_type");
+        const rows = await sql`
+          INSERT INTO pending_commands (device_id, tenant_id, command_type, payload)
+          VALUES (${device_id}, ${tenantId}, ${command_type}, ${JSON.stringify(payload)})
+          RETURNING id, status, created_at
+        ` as any[];
+        return rpcResult(id, { ok: true, command: rows[0] });
+      }
+
+      // -----------------------------------------------------------------------
+      // get_pending_commands
+      // -----------------------------------------------------------------------
+      case "get_pending_commands": {
+        const { device_id } = params;
+        if (!device_id) return rpcError(id, -32602, "missing device_id");
+        const rows = await sql`
+          SELECT id, command_type, payload, status, created_at, executed_at, completed_at
+          FROM pending_commands
+          WHERE device_id = ${device_id}
+          ORDER BY created_at DESC
+          LIMIT 20
+        ` as any[];
+        return rpcResult(id, { ok: true, commands: rows });
+      }
+
       // -----------------------------------------------------------------------
       // Unknown method
       // -----------------------------------------------------------------------
