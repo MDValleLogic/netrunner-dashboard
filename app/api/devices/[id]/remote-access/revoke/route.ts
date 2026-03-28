@@ -18,16 +18,15 @@ export async function POST(
       tenantId = auth.tenantId;
       closedBy = "mcp";
     } else {
-      const session = await requireTenantSession();
-      tenantId = session.tenantId;
-      closedBy = session.user?.email ?? "unknown";
+      const { session, tenantId: tid } = await requireTenantSession();
+      tenantId = tid;
+      closedBy = (session.user as any)?.email ?? "unknown";
     }
 
     const { id: deviceId } = await params;
     const body = await req.json().catch(() => ({}));
     const reason = body.reason ?? "user_revoked";
 
-    // Verify device belongs to this tenant
     const devices = await sql`
       SELECT device_id, nickname, remote_access
       FROM devices
@@ -45,7 +44,6 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "Remote access is not active" }, { status: 409 });
     }
 
-    // Close the open remote session — calculate duration
     await sql`
       UPDATE remote_sessions
       SET closed_at = now(),
@@ -55,7 +53,6 @@ export async function POST(
       AND closed_at IS NULL
     `;
 
-    // Update device state
     await sql`
       UPDATE devices
       SET remote_access = 'off',
@@ -64,7 +61,6 @@ export async function POST(
       WHERE device_id = ${deviceId}
     `;
 
-    // Queue cloudflared stop via Pending Commands
     await sql`
       INSERT INTO pending_commands (device_id, tenant_id, command_type, payload, queued_by)
       VALUES (

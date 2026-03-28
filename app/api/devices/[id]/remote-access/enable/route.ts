@@ -21,14 +21,13 @@ export async function POST(
       tenantId = auth.tenantId;
       openedBy = "mcp";
     } else {
-      const session = await requireTenantSession();
-      tenantId = session.tenantId;
-      openedBy = session.user?.email ?? "unknown";
+      const { session, tenantId: tid } = await requireTenantSession();
+      tenantId = tid;
+      openedBy = (session.user as any)?.email ?? "unknown";
     }
 
     const { id: deviceId } = await params;
 
-    // Verify device belongs to this tenant
     const devices = await sql`
       SELECT device_id, nickname, remote_access
       FROM devices
@@ -46,10 +45,8 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "Remote access already active" }, { status: 409 });
     }
 
-    // Set expiry 4 hours from now
     const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
 
-    // Update device remote_access state
     await sql`
       UPDATE devices
       SET remote_access = 'active',
@@ -58,7 +55,6 @@ export async function POST(
       WHERE device_id = ${deviceId}
     `;
 
-    // Log session
     const sessions = await sql`
       INSERT INTO remote_sessions (device_id, tenant_id, opened_by, opened_at)
       VALUES (${deviceId}, ${tenantId}, ${openedBy}, now())
@@ -67,7 +63,6 @@ export async function POST(
 
     const sessionId = sessions[0].id;
 
-    // Queue cloudflared start via Pending Commands
     await sql`
       INSERT INTO pending_commands (device_id, tenant_id, command_type, payload, queued_by)
       VALUES (
@@ -79,7 +74,6 @@ export async function POST(
       )
     `;
 
-    // Send confirmation email
     if (openedBy !== "mcp") {
       await resend.emails.send({
         from: "ValleLogic <hello@vallelogic.com>",
