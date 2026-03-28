@@ -64,6 +64,15 @@ type UnverifiedUser = {
   created_at: string;
 };
 
+type RemoteAccessDevice = {
+  device_id: string;
+  nickname: string | null;
+  tenant_name: string;
+  owner_email: string | null;
+  remote_access: string;
+  remote_access_expires_at: string | null;
+};
+
 function timeAgo(ts: string | null): string {
   if (!ts) return "never";
   const diff = Date.now() - new Date(ts).getTime();
@@ -112,7 +121,7 @@ function StatCard({ label, value, sub, color = "text-white" }: {
   );
 }
 
-const TABS = ["Tenants", "Devices", "Activity", "Health"] as const;
+const TABS = ["Tenants", "Devices", "Activity", "Health", "Remote Access"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function OverlordPage() {
@@ -126,6 +135,8 @@ export default function OverlordPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [offlineDevices, setOfflineDevices] = useState<OfflineDevice[]>([]);
   const [unverifiedUsers, setUnverifiedUsers] = useState<UnverifiedUser[]>([]);
+  const [remoteDevices, setRemoteDevices] = useState<RemoteAccessDevice[]>([]);
+  const [remoteActionLoading, setRemoteActionLoading] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -147,6 +158,7 @@ export default function OverlordPage() {
       setAlerts(health.alerts ?? []);
       setOfflineDevices(health.offlineDevices ?? []);
       setUnverifiedUsers(health.unverifiedUsers ?? []);
+      setRemoteDevices(devData.devices ?? []);
       setLastRefresh(new Date());
     } catch (err) {
       console.error("Overlord fetch error:", err);
@@ -160,6 +172,108 @@ export default function OverlordPage() {
     const interval = setInterval(fetchAll, 60_000);
     return () => clearInterval(interval);
   }, [fetchAll]);
+
+  const RemoteAccessTab = () => {
+    const handleEnable = async (deviceId: string) => {
+      setRemoteActionLoading(deviceId + "_enable");
+      try {
+        const res = await fetch(`/api/devices/${deviceId}/remote-access/enable`, { method: "POST" });
+        const data = await res.json();
+        if (data.ok) {
+          setRemoteDevices(prev => prev.map(d =>
+            d.device_id === deviceId ? { ...d, remote_access: "active", remote_access_expires_at: data.expires_at } : d
+          ));
+        } else { alert(data.error ?? "Failed to enable"); }
+      } catch { alert("Network error"); }
+      finally { setRemoteActionLoading(null); }
+    };
+
+    const handleRevoke = async (deviceId: string) => {
+      setRemoteActionLoading(deviceId + "_revoke");
+      try {
+        const res = await fetch(`/api/devices/${deviceId}/remote-access/revoke`, { method: "POST" });
+        const data = await res.json();
+        if (data.ok) {
+          setRemoteDevices(prev => prev.map(d =>
+            d.device_id === deviceId ? { ...d, remote_access: "off", remote_access_expires_at: null } : d
+          ));
+        } else { alert(data.error ?? "Failed to revoke"); }
+      } catch { alert("Network error"); }
+      finally { setRemoteActionLoading(null); }
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3 text-sm text-zinc-400 flex items-start gap-2">
+          <span className="text-blue-400 mt-0.5">🔒</span>
+          <span>Remote access is <strong className="text-white">OFF by default</strong>. Enable per-device when support is needed. Tunnels auto-expire after 4 hours. All sessions are logged.</span>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-zinc-800">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-zinc-500 text-xs uppercase tracking-wider">
+                <th className="px-4 py-3 text-left">Device</th>
+                <th className="px-4 py-3 text-left">Tenant</th>
+                <th className="px-4 py-3 text-left">Tunnel Status</th>
+                <th className="px-4 py-3 text-left">Expires</th>
+                <th className="px-4 py-3 text-left">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/50">
+              {remoteDevices.map((d) => {
+                const isActive = d.remote_access === "active";
+                const isLoading = remoteActionLoading?.startsWith(d.device_id);
+                return (
+                  <tr key={d.device_id} className="hover:bg-zinc-800/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-zinc-200">{d.nickname ?? d.device_id}</div>
+                      <div className="font-mono text-xs text-zinc-500">{d.device_id}</div>
+                    </td>
+                    <td className="px-4 py-3 text-zinc-400">
+                      <div>{d.tenant_name}</div>
+                      <div className="text-xs text-zinc-600">{d.owner_email}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {isActive ? (
+                        <span className="inline-flex items-center gap-1.5 bg-green-500/20 text-green-300 border border-green-500/30 text-xs px-2 py-1 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+                          ACTIVE
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 bg-zinc-800 text-zinc-500 border border-zinc-700 text-xs px-2 py-1 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 inline-block" />
+                          OFF
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-zinc-500">
+                      {isActive && d.remote_access_expires_at ? new Date(d.remote_access_expires_at).toLocaleTimeString() : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isActive ? (
+                        <button onClick={() => handleRevoke(d.device_id)} disabled={!!isLoading}
+                          className="text-xs bg-red-900/50 hover:bg-red-800/60 disabled:opacity-40 text-red-300 border border-red-700/50 px-3 py-1.5 rounded-lg transition-colors">
+                          {isLoading ? "Revoking…" : "Revoke Access"}
+                        </button>
+                      ) : (
+                        <button onClick={() => handleEnable(d.device_id)} disabled={!!isLoading}
+                          className="text-xs bg-blue-900/50 hover:bg-blue-800/60 disabled:opacity-40 text-blue-300 border border-blue-700/50 px-3 py-1.5 rounded-lg transition-colors">
+                          {isLoading ? "Enabling…" : "Enable Access"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {remoteDevices.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-12 text-center text-zinc-600">No devices found</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
 
   const TenantsTab = () => (
     <div className="overflow-x-auto rounded-xl border border-zinc-800">
@@ -394,6 +508,7 @@ export default function OverlordPage() {
             {activeTab === "Devices" && <DevicesTab />}
             {activeTab === "Activity" && <ActivityTab />}
             {activeTab === "Health" && <HealthTab />}
+            {activeTab === "Remote Access" && <RemoteAccessTab />}
           </div>
         )}
       </div>
