@@ -67,7 +67,7 @@ export async function POST(
         ${deviceId},
         ${tenantId},
         'run_script',
-        ${{ script: "sudo systemctl stop cloudflared && echo 'cloudflared stopped'" }},
+        ${{ script: "sudo bash /opt/vallelogic/tunnel-stop.sh" }},
         ${closedBy}
       )
     `;

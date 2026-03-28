@@ -64,7 +64,7 @@ export async function GET(
           ${deviceId},
           ${tenantId},
           'run_script',
-          ${{ script: "sudo systemctl stop cloudflared && echo 'cloudflared stopped'" }},
+          ${{ script: "sudo bash /opt/vallelogic/tunnel-stop.sh" }},
           'system_auto_expire'
         )
       `;

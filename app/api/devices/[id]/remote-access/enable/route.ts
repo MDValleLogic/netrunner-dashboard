@@ -69,7 +69,7 @@ export async function POST(
         ${deviceId},
         ${tenantId},
         'run_script',
-        ${{ script: "sudo systemctl start cloudflared && echo 'cloudflared started'" }},
+        ${{ script: "sudo bash /opt/vallelogic/tunnel-start.sh" }},
         ${openedBy}
       )
     `;
