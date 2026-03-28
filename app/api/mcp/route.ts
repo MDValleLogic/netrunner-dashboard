@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
           VALUES (${device_id}, ${auth.tenantId}, ${command_type}, ${JSON.stringify(payload)})
           RETURNING id, status, created_at
         ` as any[];
-        return rpcResult(id, { ok: true, command: rows[0] });
+        return rpcSuccess(id, { ok: true, command: rows[0] });
       }
 
       // -----------------------------------------------------------------------
@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
           ORDER BY created_at DESC
           LIMIT 20
         ` as any[];
-        return rpcResult(id, { ok: true, commands: rows });
+        return rpcSuccess(id, { ok: true, commands: rows });
       }
 
       // -----------------------------------------------------------------------
