@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const rows = await sql`
       SELECT device_id, nr_serial, agent_version, last_ip, last_seen
       FROM devices
-      WHERE nr_serial = ${nr_serial.toUpperCase()} AND status = 'unclaimed'
+      WHERE nr_serial = ${nr_serial.toUpperCase()} AND status IN ('unclaimed', 'provisioned')
     ` as any[];
 
     if (!rows.length) return NextResponse.json({ ok: false, error: "Device not found or already claimed" }, { status: 404 });
