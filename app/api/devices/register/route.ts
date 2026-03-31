@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     // Check if this is a new device
     const existing = await sql`
       SELECT device_id FROM devices WHERE device_id = ${device_id}
-    `;
+    ` as any[];
     const isNew = existing.length === 0;
 
     await sql`
