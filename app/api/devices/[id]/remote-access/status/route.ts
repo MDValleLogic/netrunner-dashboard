@@ -38,13 +38,13 @@ export async function GET(
 
     // Auto-expire check — if active but past expiry, close it out
     if (
-      device.remote_access === "active" &&
+      device.remote_access === true &&
       device.remote_access_expires_at &&
       new Date(device.remote_access_expires_at) < new Date()
     ) {
       await sql`
         UPDATE devices
-        SET remote_access = 'expired',
+        SET remote_access = false,
             updated_at = now()
         WHERE device_id = ${deviceId}
       `;
@@ -69,7 +69,7 @@ export async function GET(
         )
       `;
 
-      device.remote_access = "expired";
+      device.remote_access = false;
     }
 
     // Get last 10 sessions for audit log
@@ -83,7 +83,7 @@ export async function GET(
 
     // Calculate time remaining if active
     let secondsRemaining: number | null = null;
-    if (device.remote_access === "active" && device.remote_access_expires_at) {
+    if (device.remote_access === true && device.remote_access_expires_at) {
       secondsRemaining = Math.max(
         0,
         Math.floor((new Date(device.remote_access_expires_at).getTime() - Date.now()) / 1000)

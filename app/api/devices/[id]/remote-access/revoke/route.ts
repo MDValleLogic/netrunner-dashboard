@@ -40,7 +40,7 @@ export async function POST(
 
     const device = devices[0];
 
-    if (device.remote_access !== "active") {
+    if (device.remote_access !== true) {
       return NextResponse.json({ ok: false, error: "Remote access is not active" }, { status: 409 });
     }
 
@@ -55,7 +55,7 @@ export async function POST(
 
     await sql`
       UPDATE devices
-      SET remote_access = 'off',
+      SET remote_access = false,
           remote_access_expires_at = NULL,
           updated_at = now()
       WHERE device_id = ${deviceId}
@@ -74,7 +74,7 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
-      remote_access: "off",
+      remote_access: false,
       closed_by: closedBy,
       reason,
     });
