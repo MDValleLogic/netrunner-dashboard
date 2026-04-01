@@ -168,7 +168,7 @@ function SiteTile({ site }: { site: SiteTile }) {
           {site.devices.map((device, i) => {
             const ds = getDeviceStatus(device);
             const dc = getStatusColor(ds);
-            const displayName = device.nickname || device.hostname || device.nr_serial;
+            const displayName = device.nickname || device.nr_serial;
 
             return (
               <div
