@@ -27,7 +27,7 @@ const NAV = [
     { href: "/commandrunner", label: "CommandRunner", icon: "terminal", highlight: true },
   ]},
   { section: "NetRunner NOC", links: [
-    { href: "/devices/map", label: "NOC View", icon: "map" },
+    { href: "/noc", label: "NOC View", icon: "map" },
   ]},
   { section: "WebRunner", links: [
     { href: "/webrunner/overview", label: "Overview",  icon: "grid"     },
@@ -145,7 +145,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           <img src="/vallelogic-logo-white.png" alt="ValleLogic" style={{ width: "85%", maxWidth: 160, margin: "0 auto", display: "block" }} />
         </div>
 
-        <ModeSwitcher />
+        
 
         <nav className="vl-nav" style={{ flex: 1 }}>
           {NAV.map((group) => (
