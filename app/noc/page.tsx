@@ -2,236 +2,191 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-interface Device {
+type DeviceSummary = {
   device_id: string;
   nr_serial: string;
-  status: string;
   nickname: string | null;
-  site_name: string | null;
   location: string | null;
-  address: string | null;
-  lat: number | null;
-  lng: number | null;
-  agent_version: string | null;
   last_seen: string | null;
   last_ip: string | null;
-  image_version: string | null;
-}
+  agent_version: string | null;
+  online_status: "online" | "idle" | "offline" | "unclaimed";
+  avg_dns_ms: number | null;
+  avg_http_ms: number | null;
+  download_mbps: number | null;
+  upload_mbps: number | null;
+  ping_ms: number | null;
+  sla_alerts: number;
+};
 
-interface SiteTile {
+type SiteSummary = {
   site_name: string;
   address: string | null;
-  devices: Device[];
-  worstStatus: "online" | "idle" | "offline" | "unclaimed";
-}
+  devices_total: number;
+  devices_online: number;
+  devices_idle: number;
+  devices_offline: number;
+  worst_status: "online" | "idle" | "offline" | "unclaimed";
+  avg_dns_ms: number | null;
+  avg_http_ms: number | null;
+  avg_download_mbps: number | null;
+  avg_upload_mbps: number | null;
+  sla_alerts: number;
+  devices: DeviceSummary[];
+};
 
-function getDeviceStatus(device: Device): "online" | "idle" | "offline" | "unclaimed" {
-  if (device.status === "provisioned" || device.status === "unclaimed") return "unclaimed";
-  if (!device.last_seen) return "offline";
-  const mins = (Date.now() - new Date(device.last_seen).getTime()) / 60000;
-  if (mins < 5) return "online";
-  if (mins < 30) return "idle";
-  return "offline";
-}
-
-function getStatusColor(status: "online" | "idle" | "offline" | "unclaimed"): string {
-  if (status === "online") return "#22c55e";
-  if (status === "idle") return "#f59e0b";
-  if (status === "offline") return "#ef4444";
+function statusColor(s: string) {
+  if (s === "online")   return "#10b981";
+  if (s === "idle")     return "#f97316";
+  if (s === "offline")  return "#ef4444";
   return "#6b7280";
 }
 
-function getStatusLabel(status: "online" | "idle" | "offline" | "unclaimed"): string {
-  if (status === "online") return "ONLINE";
-  if (status === "idle") return "IDLE";
-  if (status === "offline") return "OFFLINE";
-  return "UNCLAIMED";
+function fmtMs(v: number | null) {
+  if (v === null) return "—";
+  return v < 1000 ? `${v}ms` : `${(v/1000).toFixed(1)}s`;
 }
 
-function worstStatus(devices: Device[]): "online" | "idle" | "offline" | "unclaimed" {
-  const statuses = devices.map(getDeviceStatus);
-  if (statuses.includes("offline")) return "offline";
-  if (statuses.includes("idle")) return "idle";
-  if (statuses.includes("online")) return "online";
-  return "unclaimed";
+function fmtMbps(v: number | null) {
+  if (v === null) return "—";
+  return `${v}`;
 }
 
-function timeSince(iso: string | null): string {
+function timeSince(iso: string | null) {
   if (!iso) return "Never";
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 2) return "Just now";
+  if (mins < 2)  return "Just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (hrs < 24)  return `${hrs}h ago`;
+  return `${Math.floor(hrs/24)}d ago`;
 }
 
-function groupBySite(devices: Device[]): SiteTile[] {
-  const map = new Map<string, SiteTile>();
-  for (const d of devices) {
-    const key = d.site_name || "Unassigned";
-    if (!map.has(key)) {
-      map.set(key, {
-        site_name: key,
-        address: d.address,
-        devices: [],
-        worstStatus: "unclaimed",
-      });
-    }
-    map.get(key)!.devices.push(d);
-  }
-  for (const site of map.values()) {
-    site.worstStatus = worstStatus(site.devices);
-  }
-  // Sort: online first, then idle, then offline, then unclaimed
-  const order = { online: 0, idle: 1, offline: 2, unclaimed: 3 };
-  return Array.from(map.values()).sort((a, b) => order[a.worstStatus] - order[b.worstStatus]);
-}
-
-function SiteTile({ site }: { site: SiteTile }) {
-  const [expanded, setExpanded] = useState(true);
-  const router = useRouter();
-  const color = getStatusColor(site.worstStatus);
-  const onlineCount = site.devices.filter(d => getDeviceStatus(d) === "online").length;
-  const totalCount = site.devices.length;
+function ApplianceCard({ device, onClick }: { device: DeviceSummary; onClick: () => void }) {
+  const color = statusColor(device.online_status);
+  const name  = device.nickname || device.nr_serial;
 
   return (
-    <div style={{
-      background: "#0d1117",
-      border: `1px solid ${site.worstStatus === "offline" ? "rgba(239,68,68,0.3)" : site.worstStatus === "idle" ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.08)"}`,
-      borderRadius: 12,
-      overflow: "hidden",
-      transition: "all 0.2s",
-    }}>
-      {/* Tile Header */}
+    <div
+      onClick={onClick}
+      className="rounded-lg border bg-gray-900/60 cursor-pointer transition-all"
+      style={{ borderColor: device.online_status === "offline" ? "rgba(239,68,68,0.4)" : device.online_status === "idle" ? "rgba(249,115,22,0.4)" : "rgba(55,65,81,0.6)" }}
+      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = color + "80"}
+      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = device.online_status === "offline" ? "rgba(239,68,68,0.4)" : device.online_status === "idle" ? "rgba(249,115,22,0.4)" : "rgba(55,65,81,0.6)"}
+    >
+      {/* Card header */}
+      <div className="px-4 pt-4 pb-3 border-b border-gray-700/60">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, boxShadow: device.online_status === "online" ? `0 0 6px ${color}` : "none" }} />
+            <span className="text-sm font-semibold text-gray-100">{name}</span>
+          </div>
+          <span className="text-xs font-mono font-bold" style={{ color }}>{device.online_status.toUpperCase()}</span>
+        </div>
+        <div className="text-xs font-mono text-gray-500 pl-4">{device.nr_serial}</div>
+        {device.location && <div className="text-xs text-gray-600 pl-4 mt-0.5">{device.location}</div>}
+      </div>
+
+      {/* Metrics */}
+      <div className="p-3 grid grid-cols-2 gap-2">
+        {[
+          { label: "AVG DNS",      value: fmtMs(device.avg_dns_ms),            alert: device.avg_dns_ms !== null && device.avg_dns_ms > 200 },
+          { label: "AVG HTTP",     value: fmtMs(device.avg_http_ms),           alert: device.avg_http_ms !== null && device.avg_http_ms > 500 },
+          { label: "DOWNLOAD",     value: device.download_mbps ? `${fmtMbps(device.download_mbps)} Mbps` : "—", alert: false },
+          { label: "UPLOAD",       value: device.upload_mbps   ? `${fmtMbps(device.upload_mbps)} Mbps`   : "—", alert: false },
+        ].map(({ label, value, alert }) => (
+          <div key={label} className="rounded bg-gray-950/80 px-2 py-2">
+            <div className="text-[9px] font-mono text-gray-600 tracking-widest mb-1">{label}</div>
+            <div className="text-sm font-mono font-bold" style={{ color: alert ? "#ef4444" : "#e5e7eb" }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div className="px-3 pb-3 flex items-center justify-between">
+        <div className="text-[10px] font-mono text-gray-600">{timeSince(device.last_seen)}</div>
+        <div
+          className="text-[10px] font-mono px-2 py-0.5 rounded-full"
+          style={{
+            color: device.sla_alerts > 0 ? "#ef4444" : "#6b7280",
+            background: device.sla_alerts > 0 ? "rgba(239,68,68,0.1)" : "rgba(255,255,255,0.04)",
+            border: `1px solid ${device.sla_alerts > 0 ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)"}`,
+          }}
+        >
+          🔔 {device.sla_alerts} ALERTS
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SiteCard({ site }: { site: SiteSummary }) {
+  const [expanded, setExpanded] = useState(false);
+  const router = useRouter();
+  const color = statusColor(site.worst_status);
+
+  return (
+    <div
+      className="rounded-xl border transition-all"
+      style={{ borderColor: site.worst_status === "offline" ? "rgba(239,68,68,0.4)" : site.worst_status === "idle" ? "rgba(249,115,22,0.3)" : "rgba(55,65,81,0.6)", background: "#111827" }}
+    >
+      {/* Site header */}
       <div
+        className="p-5 cursor-pointer"
         onClick={() => setExpanded(e => !e)}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 20px", cursor: "pointer",
-          background: expanded ? "rgba(255,255,255,0.02)" : "transparent",
-          borderBottom: expanded ? "1px solid rgba(255,255,255,0.06)" : "none",
-          transition: "background 0.15s",
-        }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {/* Status dot */}
-          <div style={{
-            width: 10, height: 10, borderRadius: "50%",
-            background: color,
-            boxShadow: site.worstStatus === "online" ? `0 0 8px ${color}` : "none",
-            flexShrink: 0,
-          }} />
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#f9fafb", letterSpacing: "0.01em" }}>
-              {site.site_name.toUpperCase()}
+        <div className="flex items-start justify-between">
+          {/* Left: site name + address */}
+          <div className="flex items-center gap-3">
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: color, boxShadow: site.worst_status === "online" ? `0 0 10px ${color}` : "none", flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <div className="text-base font-bold text-gray-100 tracking-wide">{site.site_name.toUpperCase()}</div>
+              {site.address && <div className="text-xs text-gray-500 mt-0.5">{site.address}</div>}
             </div>
-            {site.address && (
-              <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{site.address}</div>
-            )}
+          </div>
+
+          {/* Right: device count + expand */}
+          <div className="flex items-center gap-3">
+            <div className="text-xs font-mono px-3 py-1 rounded-full" style={{ color, background: `${color}15`, border: `1px solid ${color}30` }}>
+              {site.devices_online}/{site.devices_total} ONLINE
+            </div>
+            <div className="text-[10px] font-mono px-2 py-1 rounded-full" style={{ color: site.sla_alerts > 0 ? "#ef4444" : "#6b7280", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              🔔 {site.sla_alerts} ALERTS
+            </div>
+            <div className="text-gray-600 text-xs transition-transform duration-200" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>▼</div>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Device count badge */}
-          <div style={{
-            fontSize: 11, fontFamily: "monospace",
-            color: color, background: `${color}15`,
-            border: `1px solid ${color}30`,
-            padding: "3px 10px", borderRadius: 20,
-          }}>
-            {onlineCount}/{totalCount} ONLINE
-          </div>
-
-          {/* Alert badge — future SLA */}
-          <div style={{
-            fontSize: 10, fontFamily: "monospace",
-            color: "#6b7280", background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            padding: "3px 8px", borderRadius: 20,
-          }}>
-            🔔 0 ALERTS
-          </div>
-
-          {/* Expand chevron */}
-          <div style={{
-            color: "#6b7280", fontSize: 12, transition: "transform 0.2s",
-            transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-          }}>▼</div>
+        {/* Site metrics row */}
+        <div className="mt-4 grid grid-cols-4 gap-3">
+          {[
+            { label: "AVG DNS",    value: fmtMs(site.avg_dns_ms),                                        alert: site.avg_dns_ms !== null && site.avg_dns_ms > 200 },
+            { label: "AVG HTTP",   value: fmtMs(site.avg_http_ms),                                       alert: site.avg_http_ms !== null && site.avg_http_ms > 500 },
+            { label: "DOWNLOAD",   value: site.avg_download_mbps ? `${fmtMbps(site.avg_download_mbps)} Mbps` : "—", alert: false },
+            { label: "UPLOAD",     value: site.avg_upload_mbps   ? `${fmtMbps(site.avg_upload_mbps)} Mbps`   : "—", alert: false },
+          ].map(({ label, value, alert }) => (
+            <div key={label} className="rounded-lg border border-gray-700/60 bg-gray-900/60 px-4 py-3">
+              <div className="text-[9px] font-mono text-gray-500 tracking-widest mb-1.5">{label}</div>
+              <div className="text-xl font-bold font-mono" style={{ color: alert ? "#ef4444" : "#f9fafb" }}>{value}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Device rows */}
+      {/* Expanded appliance grid */}
       {expanded && (
-        <div>
-          {site.devices.map((device, i) => {
-            const ds = getDeviceStatus(device);
-            const dc = getStatusColor(ds);
-            const displayName = device.nickname || device.nr_serial;
-
-            return (
-              <div
+        <div className="px-5 pb-5 border-t border-gray-700/40 pt-4">
+          <div className="text-[9px] font-mono text-gray-600 tracking-widest mb-3">APPLIANCES — {site.devices.length} DEVICE{site.devices.length !== 1 ? "S" : ""}</div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+            {site.devices.map(device => (
+              <ApplianceCard
                 key={device.device_id}
+                device={device}
                 onClick={() => router.push(`/webrunner/overview?device=${device.device_id}`)}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px",
-                  alignItems: "center",
-                  padding: "12px 20px",
-                  borderBottom: i < site.devices.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                  cursor: "pointer",
-                  transition: "background 0.1s",
-                  gap: 8,
-                }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
-              >
-                {/* Device name */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{
-                    width: 7, height: 7, borderRadius: "50%",
-                    background: dc, flexShrink: 0,
-                    boxShadow: ds === "online" ? `0 0 6px ${dc}` : "none",
-                  }} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>{displayName}</div>
-                    {device.location && (
-                      <div style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }}>{device.location}</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Serial */}
-                <div style={{ fontFamily: "monospace", fontSize: 11, color: "#38bdf8" }}>
-                  {device.nr_serial}
-                </div>
-
-                {/* Status */}
-                <div style={{
-                  fontFamily: "monospace", fontSize: 10, fontWeight: 700,
-                  color: dc, letterSpacing: "0.05em",
-                }}>
-                  {getStatusLabel(ds)}
-                </div>
-
-                {/* Last seen */}
-                <div style={{ fontFamily: "monospace", fontSize: 11, color: "#9ca3af" }}>
-                  {timeSince(device.last_seen)}
-                </div>
-
-                {/* IP */}
-                <div style={{ fontFamily: "monospace", fontSize: 11, color: "#6b7280" }}>
-                  {device.last_ip || "—"}
-                </div>
-
-                {/* Agent */}
-                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#4b5563", textAlign: "right" }}>
-                  v{device.agent_version || "—"}
-                </div>
-              </div>
-            );
-          })}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -239,129 +194,77 @@ function SiteTile({ site }: { site: SiteTile }) {
 }
 
 export default function NOCPage() {
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sites, setSites]           = useState<SiteSummary[]>([]);
+  const [loading, setLoading]       = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const router = useRouter();
 
-  const fetchDevices = useCallback(async () => {
-    const res = await fetch("/api/devices");
+  const fetchNOC = useCallback(async () => {
+    const res  = await fetch("/api/noc/summary");
     const data = await res.json();
-    if (data.ok) {
-      setDevices(data.devices);
-      setLastUpdated(new Date());
-    }
+    if (data.ok) { setSites(data.sites); setLastUpdated(new Date()); }
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    fetchDevices();
-    const interval = setInterval(fetchDevices, 30000); // auto-refresh every 30s
-    return () => clearInterval(interval);
-  }, [fetchDevices]);
+    fetchNOC();
+    const t = setInterval(fetchNOC, 30000);
+    return () => clearInterval(t);
+  }, [fetchNOC]);
 
-  const sites = groupBySite(devices.filter(d => d.status !== "provisioned" && d.status !== "unclaimed" || d.nickname));
-  const onlineCount = devices.filter(d => getDeviceStatus(d) === "online").length;
-  const offlineCount = devices.filter(d => getDeviceStatus(d) === "offline").length;
-  const idleCount = devices.filter(d => getDeviceStatus(d) === "idle").length;
+  const totalOnline  = sites.reduce((a, s) => a + s.devices_online,  0);
+  const totalIdle    = sites.reduce((a, s) => a + s.devices_idle,    0);
+  const totalOffline = sites.reduce((a, s) => a + s.devices_offline, 0);
 
   return (
-    <div style={{ padding: "32px", maxWidth: 1100, margin: "0 auto" }}>
+    <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
+      <div className="flex items-start justify-between mb-6 max-w-6xl">
         <div>
-          <div style={{ fontFamily: "monospace", fontSize: 10, color: "#38bdf8", letterSpacing: "3px", marginBottom: 6 }}>
-            NETRUNNER NOC
-          </div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "#f9fafb", margin: 0 }}>
-            NOC View
-          </h1>
-          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 6, fontFamily: "monospace" }}>
-            Updated {lastUpdated.toLocaleTimeString()} · Auto-refresh 30s
+          <div className="text-[10px] font-mono text-blue-400 tracking-widest mb-1">NETRUNNER NOC</div>
+          <h1 className="text-2xl font-bold text-gray-100">NOC View</h1>
+          <p className="text-xs font-mono text-gray-500 mt-1">
+            Updated {lastUpdated.toLocaleTimeString()} · Auto-refresh 30s · 1hr averages
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {/* Summary pills */}
-          <div style={{ display: "flex", gap: 8 }}>
-            {[
-              { label: "ONLINE", count: onlineCount, color: "#22c55e" },
-              { label: "IDLE", count: idleCount, color: "#f59e0b" },
-              { label: "OFFLINE", count: offlineCount, color: "#ef4444" },
-            ].map(({ label, count, color }) => (
-              <div key={label} style={{
-                fontFamily: "monospace", fontSize: 11, fontWeight: 700,
-                color, background: `${color}12`,
-                border: `1px solid ${color}30`,
-                padding: "5px 12px", borderRadius: 20,
-                display: "flex", alignItems: "center", gap: 6,
-              }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block" }} />
-                {count} {label}
-              </div>
-            ))}
-          </div>
+        <div className="flex items-center gap-3">
+          {/* Status pills */}
+          {[
+            { label: "ONLINE",  count: totalOnline,  color: "#10b981" },
+            { label: "IDLE",    count: totalIdle,    color: "#f97316" },
+            { label: "OFFLINE", count: totalOffline, color: "#ef4444" },
+          ].map(({ label, count, color }) => (
+            <div key={label} className="flex items-center gap-2 text-xs font-mono font-bold px-3 py-1.5 rounded-full" style={{ color, background: `${color}12`, border: `1px solid ${color}30` }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block" }} />
+              {count} {label}
+            </div>
+          ))}
 
-          {/* Map View button */}
-          <button
-            onClick={() => router.push("/devices/map")}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "7px 14px", background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8,
-              color: "#9ca3af", cursor: "pointer", fontSize: 12, fontWeight: 600,
-              fontFamily: "inherit",
-            }}
-          >
+          <button onClick={() => router.push("/devices/map")} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-400 cursor-pointer" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
             🗺 Map View
           </button>
 
-          <button
-            onClick={fetchDevices}
-            style={{
-              padding: "7px 14px", background: "transparent",
-              border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8,
-              color: "#6b7280", cursor: "pointer", fontSize: 12,
-              fontFamily: "monospace", letterSpacing: "1px",
-            }}
-          >
+          <button onClick={fetchNOC} className="px-3 py-1.5 rounded-lg text-xs font-mono text-gray-500 cursor-pointer" style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.08)" }}>
             ↻ REFRESH
           </button>
         </div>
       </div>
 
-      {/* Column headers */}
-      {!loading && sites.length > 0 && (
-        <div style={{
-          display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px",
-          padding: "6px 20px", marginBottom: 8, gap: 8,
-          fontFamily: "monospace", fontSize: 9, color: "#4b5563", letterSpacing: "2px",
-        }}>
-          <span>DEVICE</span>
-          <span>SERIAL</span>
-          <span>STATUS</span>
-          <span>LAST SEEN</span>
-          <span>IP</span>
-          <span style={{ textAlign: "right" }}>AGENT</span>
-        </div>
-      )}
-
-      {/* Site tiles */}
-      {loading ? (
-        <div style={{ padding: 64, textAlign: "center", fontFamily: "monospace", fontSize: 11, color: "#4b5563", letterSpacing: "2px" }}>
-          LOADING FLEET...
-        </div>
-      ) : sites.length === 0 ? (
-        <div style={{ padding: 64, textAlign: "center", fontFamily: "monospace", fontSize: 11, color: "#4b5563" }}>
-          NO DEVICES FOUND — ADD A DEVICE IN DEVICE SETUP
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {sites.map(site => (
-            <SiteTile key={site.site_name} site={site} />
-          ))}
-        </div>
-      )}
+      {/* Site cards */}
+      <div className="max-w-6xl space-y-4">
+        {loading ? (
+          <div className="rounded-xl border border-gray-700/60 bg-gray-900/60 p-16 text-center">
+            <div className="text-xs font-mono text-gray-600 tracking-widest">LOADING FLEET...</div>
+          </div>
+        ) : sites.length === 0 ? (
+          <div className="rounded-xl border border-gray-700/60 bg-gray-900/60 p-16 text-center">
+            <div className="text-xs font-mono text-gray-600">NO SITES FOUND — CONFIGURE DEVICES IN DEVICE SETUP</div>
+          </div>
+        ) : (
+          sites.map(site => <SiteCard key={site.site_name} site={site} />)
+        )}
+      </div>
     </div>
   );
 }
