@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type DeviceSummary = {
   device_id: string;
@@ -219,10 +220,13 @@ export default function NOCPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
       {/* Header */}
+      <div className="max-w-6xl mb-4">
+        <Link href="/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280", textDecoration: "none", padding: "5px 10px", borderRadius: 6, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>← Dashboard</Link>
+      </div>
       <div className="flex items-start justify-between mb-6 max-w-6xl">
         <div>
           <div className="text-[10px] font-mono text-blue-400 tracking-widest mb-1">NETRUNNER NOC</div>
-          <h1 className="text-2xl font-bold text-gray-100">NOC View</h1>
+          <h1 style={{ color: "#ffffff", fontSize: 24, fontWeight: 700, margin: 0 }}>NOC View</h1>
           <p className="text-xs font-mono text-gray-500 mt-1">
             Updated {lastUpdated.toLocaleTimeString()} · Auto-refresh 30s · 1hr averages
           </p>
@@ -252,7 +256,7 @@ export default function NOCPage() {
       </div>
 
       {/* Site cards */}
-      <div className="max-w-6xl space-y-4">
+      <div className="max-w-6xl grid grid-cols-1 xl:grid-cols-2 gap-4">
         {loading ? (
           <div className="rounded-xl border border-gray-700/60 bg-gray-900/60 p-16 text-center">
             <div className="text-xs font-mono text-gray-600 tracking-widest">LOADING FLEET...</div>
