@@ -758,13 +758,94 @@ async function setRfActiveMode(deviceId: string, tenantId: string, enabled: bool
 
 async function getNocSummary(tenantId: string) {
   const devices = await sql`
-    SELECT status, COUNT(*) AS count FROM devices WHERE tenant_id = ${tenantId}::uuid GROUP BY status
+    SELECT device_id, nr_serial, nickname, site_name, location, address,
+           agent_version, last_seen, last_ip, status
+    FROM devices WHERE tenant_id = ${tenantId}::uuid ORDER BY site_name, nickname
   ` as any[];
-  const total = devices.reduce((a: number, d: any) => a + parseInt(d.count), 0);
-  const online = devices.find((d: any) => d.status === 'online')?.count ?? 0;
-  const offline = devices.find((d: any) => d.status !== 'online')?.count ?? 0;
-  const lastSeen = await sql`SELECT MAX(last_seen) AS latest FROM devices WHERE tenant_id = ${tenantId}::uuid` as any[];
-  return { total_devices: total, online: parseInt(online), offline: parseInt(offline), last_activity: lastSeen[0]?.latest ?? null, health: parseInt(online) === total ? "healthy" : parseInt(online) === 0 ? "critical" : "degraded" };
+
+  const webStats = await sql`
+    SELECT device_id,
+           ROUND(AVG(dns_ms))  AS avg_dns_ms,
+           ROUND(AVG(http_ms)) AS avg_http_ms,
+           COUNT(*)            AS measurement_count
+    FROM measurements
+    WHERE tenant_id = ${tenantId}::uuid
+      AND ts_utc > NOW() - INTERVAL '1 hour'
+      AND http_err IS NULL
+    GROUP BY device_id
+  ` as any[];
+
+  const speedStats = await sql`
+    SELECT DISTINCT ON (sr.device_id) sr.device_id,
+           sr.download_mbps, sr.upload_mbps, sr.ping_ms
+    FROM speed_results sr
+    JOIN devices d ON d.device_id = sr.device_id
+    WHERE d.tenant_id = ${tenantId}::uuid
+      AND sr.error IS NULL
+      AND sr.ts_utc > NOW() - INTERVAL '1 hour'
+    ORDER BY sr.device_id, sr.ts_utc DESC
+  ` as any[];
+
+  const webByDevice = new Map(webStats.map((r: any) => [r.device_id, r]));
+  const speedByDevice = new Map(speedStats.map((r: any) => [r.device_id, r]));
+
+  const siteMap = new Map<string, any>();
+  for (const d of devices) {
+    const key = d.site_name || 'Unassigned';
+    const mins = d.last_seen ? (Date.now() - new Date(d.last_seen).getTime()) / 60000 : Infinity;
+    const online_status = d.status === 'provisioned' || d.status === 'unclaimed' ? 'unclaimed'
+      : mins < 5 ? 'online' : mins < 30 ? 'idle' : 'offline';
+    const web = webByDevice.get(d.device_id);
+    const speed = speedByDevice.get(d.device_id);
+    if (!siteMap.has(key)) siteMap.set(key, { site_name: key, address: d.address, devices: [], online: 0, idle: 0, offline: 0 });
+    const site = siteMap.get(key);
+    if (online_status === 'online') site.online++;
+    else if (online_status === 'idle') site.idle++;
+    else if (online_status === 'offline') site.offline++;
+    site.devices.push({
+      device_id: d.device_id, nr_serial: d.nr_serial, nickname: d.nickname,
+      location: d.location, online_status, last_seen: d.last_seen, last_ip: d.last_ip,
+      avg_dns_ms: web ? Number(web.avg_dns_ms) : null,
+      avg_http_ms: web ? Number(web.avg_http_ms) : null,
+      download_mbps: speed ? Number(speed.download_mbps) : null,
+      upload_mbps: speed ? Number(speed.upload_mbps) : null,
+      sla_alerts: 0,
+    });
+  }
+
+  const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a: number, b: number) => a + b, 0) / arr.length) : null;
+  const sites = Array.from(siteMap.values()).map((site: any) => {
+    const devs = site.devices;
+    const dnsVals  = devs.map((d: any) => d.avg_dns_ms).filter((v: any) => v !== null);
+    const httpVals = devs.map((d: any) => d.avg_http_ms).filter((v: any) => v !== null);
+    const dlVals   = devs.map((d: any) => d.download_mbps).filter((v: any) => v !== null);
+    const ulVals   = devs.map((d: any) => d.upload_mbps).filter((v: any) => v !== null);
+    const worst = site.offline > 0 ? 'offline' : site.idle > 0 ? 'idle' : site.online > 0 ? 'online' : 'unclaimed';
+    return {
+      site_name: site.site_name, address: site.address,
+      devices_total: devs.length, devices_online: site.online,
+      devices_idle: site.idle, devices_offline: site.offline,
+      worst_status: worst, sla_alerts: 0,
+      avg_dns_ms: avg(dnsVals), avg_http_ms: avg(httpVals),
+      avg_download_mbps: avg(dlVals), avg_upload_mbps: avg(ulVals),
+      devices: devs,
+    };
+  });
+
+  const order: Record<string, number> = { offline: 0, idle: 1, online: 2, unclaimed: 3 };
+  sites.sort((a: any, b: any) => order[a.worst_status] - order[b.worst_status]);
+
+  const totalOnline  = sites.reduce((a: number, s: any) => a + s.devices_online, 0);
+  const totalOffline = sites.reduce((a: number, s: any) => a + s.devices_offline, 0);
+  const totalIdle    = sites.reduce((a: number, s: any) => a + s.devices_idle, 0);
+  const health = totalOffline === 0 ? 'healthy' : totalOnline === 0 ? 'critical' : 'degraded';
+
+  return {
+    generated_at: new Date().toISOString(),
+    total_sites: sites.length, total_devices: devices.length,
+    total_online: totalOnline, total_idle: totalIdle, total_offline: totalOffline,
+    health, sites,
+  };
 }
 
 async function getNocAlerts(tenantId: string, hours: number) {
