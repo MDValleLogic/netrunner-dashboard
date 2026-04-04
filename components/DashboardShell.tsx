@@ -27,7 +27,13 @@ const NAV = [
     { href: "/commandrunner", label: "CommandRunner", icon: "terminal", highlight: true },
   ]},
   { section: "NetRunner NOC", links: [
-    { href: "/noc", label: "NOC View", icon: "map" },
+    { href: "/noc",         label: "NOC View",  icon: "map"      },
+    { href: "/devices/map", label: "Map View",  icon: "map"      },
+  ]},
+  { section: "System", links: [
+    { href: "/settings/devices",  label: "Device Setup",   icon: "cpu"   },
+    { href: "/settings/users",    label: "Users",          icon: "users" },
+    { href: "/settings/storage",  label: "Storage & Data", icon: "clock" },
   ]},
   { section: "WebRunner", links: [
     { href: "/webrunner/overview", label: "Overview",  icon: "grid"     },
@@ -61,11 +67,6 @@ const NAV = [
   ]},
   { section: "Coming Soon", links: [
     { href: "/stormrunner", label: "StormRunner", icon: "storm", phase: "P3", disabled: true },
-  ]},
-  { section: "System", links: [
-    { href: "/settings/devices",  label: "Device Setup",  icon: "cpu"   },
-    { href: "/settings/users",    label: "Users",         icon: "users" },
-    { href: "/settings/storage",  label: "Storage & Data",icon: "clock" },
   ]},
 ];
 
