@@ -24,7 +24,8 @@ const Icon = {
 
 const NAV = [
   { section: "AI OPERATIONS", links: [
-    { href: "/commandrunner", label: "CommandRunner", icon: "terminal", highlight: true },
+    { href: "/commandrunner", label: "ValleLogic MCP", icon: "terminal", highlight: true },
+    { href: "/commandrunner/execute", label: "CommandRunner", icon: "terminal", highlight: true },
   ]},
   { section: "NetRunner NOC", links: [
     { href: "/noc",         label: "NOC View",  icon: "map"      },

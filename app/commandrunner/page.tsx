@@ -126,13 +126,13 @@ export default function CommandRunnerPage() {
               <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5"><rect x="1" y="2" width="14" height="12" rx="2"/><polyline points="4,6 7,8 4,10"/><line x1="8" y1="10" x2="12" y2="10"/></svg>
             </div>
             <div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "#f9fafb", letterSpacing: "-0.02em" }}>CommandRunner</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#f9fafb", letterSpacing: "-0.02em" }}>ValleLogic MCP</div>
               <div style={{ fontSize: 11, color: "#6b7280" }}>MCP · AI-Queryable Network Intelligence</div>
             </div>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 7, background: serverOk === null ? "rgba(107,114,128,0.1)" : serverOk ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", border: `1px solid ${serverOk === null ? "#374151" : serverOk ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)"}` }}>
               {serverOk !== null && <StatusDot ok={serverOk} />}
               <span style={{ fontSize: 11, fontWeight: 700, color: serverOk === null ? "#6b7280" : serverOk ? "#10b981" : "#ef4444" }}>
-                {serverOk === null ? "Checking…" : serverOk ? "MCP Server Online" : "MCP Server Offline"}
+                {serverOk === null ? "Checking…" : serverOk ? "Claude Connected" : "MCP Server Offline"}
               </span>
             </div>
           </div>
