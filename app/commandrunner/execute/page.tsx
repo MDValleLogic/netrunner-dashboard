@@ -65,7 +65,7 @@ const SNMP_QUICK_OIDS = [
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const CYAN   = "#00E5CC";
+const CYAN   = "#33FF00";
 const AMBER  = "#FFB800";
 const RED    = "#FF3B3B";
 const GREEN  = "#00E87A";
@@ -74,7 +74,7 @@ const BORDER = "rgba(0,229,204,0.2)";
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    background: "#030810",
+    background: "#0A0A0A",
     minHeight: "100vh",
     fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
     color: "#E0F7F5",
