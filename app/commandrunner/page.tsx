@@ -164,16 +164,36 @@ export default function CommandRunnerPage() {
             </div>
 
             <div style={card}>
-              <div style={label}>Available Tools (7)</div>
+              <div style={label}>Available Tools (27)</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {[
                   { name: "list_devices", desc: "All devices + online status" },
                   { name: "get_device_status", desc: "Single device health check" },
-                  { name: "get_rf_history", desc: "WiFi scan history + band data" },
+                  { name: "queue_command", desc: "Queue CLI/SNMP/Discovery command to Pi" },
+                  { name: "get_pending_commands", desc: "Command history + output + error" },
+                  { name: "get_noc_summary", desc: "Fleet-wide NOC status" },
+                  { name: "get_noc_alerts", desc: "Active alerts — offline, gaps" },
+                  { name: "get_noc_event_log", desc: "Recent device events" },
+                  { name: "list_sites", desc: "All sites with device counts" },
+                  { name: "get_site", desc: "Single site + assigned devices" },
+                  { name: "create_site", desc: "Create a new site" },
+                  { name: "update_site", desc: "Update site details" },
                   { name: "get_speed_results", desc: "Download / upload / ping trends" },
+                  { name: "get_speedrunner_live", desc: "Most recent speed test per device" },
+                  { name: "get_speedrunner_config", desc: "SpeedRunner configuration" },
                   { name: "get_route_trace", desc: "Traceroute hops + ISP path" },
+                  { name: "get_routerunner_live", desc: "Most recent traceroute result" },
+                  { name: "get_routerunner_config", desc: "RouterRunner configuration" },
                   { name: "get_webrunner_data", desc: "HTTP latency + DNS + uptime" },
+                  { name: "get_webrunner_live", desc: "Most recent HTTP check results" },
+                  { name: "get_webrunner_config", desc: "WebRunner configuration" },
                   { name: "get_measurements_timeseries", desc: "Time-bucketed aggregated data" },
+                  { name: "get_ble_devices", desc: "All BLE devices detected by a Pi" },
+                  { name: "get_ble_history", desc: "Hourly BLE scan summaries" },
+                  { name: "get_ble_live_feed", desc: "BLE devices detected in last 5 min" },
+                  { name: "get_ble_device_detail", desc: "Full history for a specific BLE MAC" },
+                  { name: "get_rf_history", desc: "WiFi scan history + band data" },
+                  { name: "get_rf_active_scan", desc: "Most recent active RF scan" },
                 ].map(tool => (
                   <div key={tool.name} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.1)", borderRadius: 7 }}>
                     <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(59,130,246,0.15)", color: "#3b82f6", marginTop: 1, whiteSpace: "nowrap" }}>fn</span>
