@@ -155,7 +155,7 @@ export default async function UsersPage() {
                 </div>
                 <div>
                   <label className="vl-label">Email address</label>
-                  <input className="vl-input" name="email" type="email" placeholder="jane@example.com" required />
+                  <input className="vl-input" name="email" type="email" placeholder="jane@example.com" autoComplete="off" required />
                 </div>
               </div>
               <div style={{ marginBottom: 16 }}>
