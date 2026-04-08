@@ -96,12 +96,12 @@ export const MCP_TOOLS: MCPTool[] = [
   },
   {
     name: "queue_command",
-    description: "Queue a command to be executed on a NetRunner device on its next heartbeat. Supports run_script, update_file, restart_service, reboot.",
+    description: "Queue a command to be executed on a NetRunner device on its next heartbeat. Supports run_script, update_file, restart_service, reboot, run_cli_command, run_snmp_get, run_network_discovery.",
     inputSchema: {
       type: "object",
       properties: {
         device_id: { type: "string", description: "The NetRunner device ID." },
-        command_type: { type: "string", enum: ["run_script", "update_file", "restart_service", "reboot"], description: "Type of command to execute." },
+        command_type: { type: "string", enum: ["run_script", "update_file", "restart_service", "reboot", "run_cli_command", "run_snmp_get", "run_network_discovery"], description: "Type of command to execute." },
         payload: { type: "object", description: "Command payload. run_script: {script}, update_file: {path, content}, restart_service: {service_name}, reboot: {}" },
       },
       required: ["device_id", "command_type"],
@@ -578,7 +578,7 @@ const _originalDispatch = dispatchTool;
 async function queueCommand(deviceId: string, tenantId: string, args: Record<string, unknown>) {
   if (!(await verifyDeviceTenant(deviceId, tenantId))) return { error: `Device ${deviceId} not found.` };
   const { command_type, payload = {} } = args;
-  const valid = ["run_script", "update_file", "restart_service", "reboot"];
+  const valid = ["run_script", "update_file", "restart_service", "reboot", "run_cli_command", "run_snmp_get", "run_network_discovery"];
   if (!valid.includes(command_type as string)) return { error: "invalid command_type" };
   const rows = await sql`
     INSERT INTO pending_commands (device_id, tenant_id, command_type, payload)
@@ -591,7 +591,7 @@ async function queueCommand(deviceId: string, tenantId: string, args: Record<str
 async function getPendingCommands(deviceId: string, tenantId: string) {
   if (!(await verifyDeviceTenant(deviceId, tenantId))) return { error: `Device ${deviceId} not found.` };
   const rows = await sql`
-    SELECT id, command_type, payload, status, created_at, executed_at, completed_at
+    SELECT id, command_type, payload, status, created_at, executed_at, completed_at, output, error
     FROM pending_commands
     WHERE device_id = ${deviceId}
     ORDER BY created_at DESC
@@ -635,6 +635,10 @@ export async function dispatchToolExtended(
     // Fall through to original
     case "queue_command": return queueCommand(args.device_id as string, tenantId, args);
     case "get_pending_commands": return getPendingCommands(args.device_id as string, tenantId);
+    case "list_sites":   return listSites(tenantId);
+    case "get_site":     return getSite(args.site_id as string, tenantId);
+    case "create_site":  return createSite(tenantId, args);
+    case "update_site":  return updateSite(args.site_id as string, tenantId, args);
     default: return _originalDispatch(toolName, args, tenantId);
   }
 }
@@ -980,4 +984,105 @@ async function getWebrunnerLive(deviceId: string, tenantId: string) {
     ts_utc: results[0]?.ts_utc ?? null,
     results: results.map((r: any) => ({ url: r.url, status_code: r.status_code, latency_ms: r.latency_ms, dns_ms: r.dns_ms, up: !r.http_err })),
   };
+}
+
+// ── Sites ────────────────────────────────────────────────────────────────────
+
+const SITES_TOOLS: MCPTool[] = [
+  {
+    name: "list_sites",
+    description: "List all sites for this tenant. Returns site name, address, district, city, state, coordinates, device count, and online device count.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "get_site",
+    description: "Get a single site by ID including all devices assigned to it.",
+    inputSchema: { type: "object", properties: {
+      site_id: { type: "string", description: "The site UUID." },
+    }, required: ["site_id"] },
+  },
+  {
+    name: "create_site",
+    description: "Create a new site for this tenant.",
+    inputSchema: { type: "object", properties: {
+      name:     { type: "string", description: "Site name (e.g. Washington Elementary)." },
+      address:  { type: "string", description: "Street address." },
+      district: { type: "string", description: "District or organization name." },
+      city:     { type: "string", description: "City." },
+      state:    { type: "string", description: "State." },
+      lat:      { type: "number", description: "Latitude." },
+      lng:      { type: "number", description: "Longitude." },
+    }, required: ["name"] },
+  },
+  {
+    name: "update_site",
+    description: "Update an existing site's details.",
+    inputSchema: { type: "object", properties: {
+      site_id:  { type: "string", description: "The site UUID." },
+      name:     { type: "string", description: "New site name." },
+      address:  { type: "string", description: "New address." },
+      district: { type: "string", description: "New district." },
+      city:     { type: "string", description: "New city." },
+      state:    { type: "string", description: "New state." },
+    }, required: ["site_id"] },
+  },
+];
+
+MCP_TOOLS.push(...SITES_TOOLS);
+
+// ── Sites Handlers ───────────────────────────────────────────────────────────
+
+async function listSites(tenantId: string) {
+  const rows = await sql`
+    SELECT s.id, s.name, s.address, s.district, s.city, s.state, s.lat, s.lng,
+      COUNT(d.device_id)::int AS device_count,
+      COUNT(CASE WHEN d.last_seen > NOW() - INTERVAL '3 minutes' THEN 1 END)::int AS devices_online
+    FROM sites s
+    LEFT JOIN devices d ON d.site_name = s.name AND d.tenant_id = ${tenantId}::uuid
+    WHERE s.tenant_id = ${tenantId}::uuid
+    GROUP BY s.id ORDER BY s.name
+  ` as any[];
+  return { site_count: rows.length, sites: rows };
+}
+
+async function getSite(siteId: string, tenantId: string) {
+  const rows = await sql`
+    SELECT s.*, COUNT(d.device_id)::int AS device_count
+    FROM sites s
+    LEFT JOIN devices d ON d.site_name = s.name AND d.tenant_id = ${tenantId}::uuid
+    WHERE s.id = ${siteId}::uuid AND s.tenant_id = ${tenantId}::uuid
+    GROUP BY s.id
+  ` as any[];
+  if (rows.length === 0) return { error: `Site ${siteId} not found.` };
+  return rows[0];
+}
+
+async function createSite(tenantId: string, args: Record<string, unknown>) {
+  const { name, address, district, city, state, lat, lng } = args;
+  if (!name) return { error: "name is required" };
+  const rows = await sql`
+    INSERT INTO sites (tenant_id, name, address, district, city, state, lat, lng)
+    VALUES (${tenantId}::uuid, ${name as string}, ${address as string ?? null},
+            ${district as string ?? null}, ${city as string ?? null},
+            ${state as string ?? null}, ${lat as number ?? null}, ${lng as number ?? null})
+    RETURNING *
+  ` as any[];
+  return { ok: true, site: rows[0] };
+}
+
+async function updateSite(siteId: string, tenantId: string, args: Record<string, unknown>) {
+  const { name, address, district, city, state } = args;
+  const rows = await sql`
+    UPDATE sites SET
+      name     = COALESCE(${name as string ?? null}, name),
+      address  = COALESCE(${address as string ?? null}, address),
+      district = COALESCE(${district as string ?? null}, district),
+      city     = COALESCE(${city as string ?? null}, city),
+      state    = COALESCE(${state as string ?? null}, state),
+      updated_at = NOW()
+    WHERE id = ${siteId}::uuid AND tenant_id = ${tenantId}::uuid
+    RETURNING *
+  ` as any[];
+  if (rows.length === 0) return { error: `Site ${siteId} not found.` };
+  return { ok: true, site: rows[0] };
 }
