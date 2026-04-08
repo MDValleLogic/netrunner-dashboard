@@ -385,6 +385,13 @@ export default function CommandRunnerV2() {
   const pollRef                         = useRef<Record<string, NodeJS.Timeout>>({});
 
   useEffect(() => {
+    // Load JSZip for ZIP export
+    if (!(window as any).JSZip) {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+      document.head.appendChild(s);
+    }
+
     fetch("/api/devices/list")
       .then(r => r.json())
       .then(d => { setDevices(d.devices ?? []); })
@@ -719,6 +726,46 @@ export default function CommandRunnerV2() {
                     <span style={{ fontSize: 11, color: "rgba(224,247,245,0.3)" }}>
                       {results.filter(r => r.status === "complete").length}/{results.length} complete
                     </span>
+                    <button
+                      onClick={() => {
+                        const JSZip = (window as any).JSZip;
+                        if (!JSZip) { alert("JSZip not loaded"); return; }
+                        const zip = new JSZip();
+                        results.forEach(r => {
+                          const ts = new Date(r.started_at).toISOString().replace(/[:.]/g, "-");
+                          const name = `${r.device_name}_${r.command.replace(/[^a-z0-9]/gi,"_")}_${ts}.txt`;
+                          const body = [
+                            `Device:    ${r.device_name}`,
+                            `Protocol:  ${r.protocol}`,
+                            `Target:    ${r.target}`,
+                            `Command:   ${r.command}`,
+                            `Status:    ${r.status}`,
+                            `Started:   ${r.started_at}`,
+                            `Completed: ${r.completed_at ?? "—"}`,
+                            ``,
+                            `--- OUTPUT ---`,
+                            r.output ?? "(no output)",
+                          ].join("\n");
+                          zip.file(name, body);
+                        });
+                        zip.generateAsync({ type: "blob" }).then((blob: Blob) => {
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `commandrunner_${new Date().toISOString().slice(0,19).replace(/[:.]/g,"-")}.zip`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        });
+                      }}
+                      style={{
+                        fontSize: 11, color: CYAN, background: "transparent",
+                        border: `1px solid ${CYAN}44`, borderRadius: 4,
+                        padding: "4px 10px", cursor: "pointer", fontFamily: "inherit",
+                        letterSpacing: "0.1em",
+                      }}
+                    >
+                      ↓ ZIP
+                    </button>
                     <button
                       onClick={() => setResults([])}
                       style={{
