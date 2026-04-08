@@ -387,9 +387,27 @@ export default function CommandRunnerV2() {
   useEffect(() => {
     fetch("/api/devices/list")
       .then(r => r.json())
+      .then(d => { setDevices(d.devices ?? []); })
+      .catch(() => {});
+
+    // Load last 5 commands from DB on mount — results survive refresh
+    fetch("/api/commandrunner/execute?recent=5")
+      .then(r => r.json())
       .then(d => {
-        const devs = d.devices ?? [];
-        setDevices(devs);
+        if (!d.commands) return;
+        const loaded: CommandResult[] = d.commands.map((c: any) => ({
+          id:           c.id,
+          device_id:    c.device_id,
+          device_name:  c.device_id,
+          protocol:     c.command_type === "run_cli_command" ? "CLI" : c.command_type === "run_snmp_get" ? "SNMP" : "DISCOVERY",
+          target:       c.payload?.target_ip || c.payload?.subnet || "—",
+          command:      c.payload?.command || c.payload?.oid || c.payload?.subnet || "—",
+          status:       c.status === "executing" ? "running" : c.status,
+          output:       c.output ?? c.error ?? null,
+          started_at:   c.created_at,
+          completed_at: c.completed_at ?? null,
+        }));
+        setResults(loaded);
       })
       .catch(() => {});
   }, []);

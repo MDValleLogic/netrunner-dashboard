@@ -8,10 +8,25 @@ export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const id = req.nextUrl.searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  const id     = req.nextUrl.searchParams.get("id");
+  const recent = req.nextUrl.searchParams.get("recent");
 
   const tenantId = (session.user as any).tenantId;
+
+  // Return last N commands for this tenant (page mount persistence)
+  if (!id && recent) {
+    const limit = Math.min(parseInt(recent) || 5, 20);
+    const rows = await sql`
+      SELECT id, device_id, command_type, payload, status, created_at, completed_at, output, error
+      FROM pending_commands
+      WHERE tenant_id = ${tenantId}
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    ` as any[];
+    return NextResponse.json({ ok: true, commands: rows });
+  }
+
+  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
   const rows = await sql`
     SELECT id, command_type, payload, status, created_at, executed_at, completed_at, output, error
