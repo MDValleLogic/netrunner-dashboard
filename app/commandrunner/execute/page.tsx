@@ -394,7 +394,15 @@ export default function CommandRunnerV2() {
 
     fetch("/api/devices/list")
       .then(r => r.json())
-      .then(d => { setDevices(d.devices ?? []); })
+      .then(d => {
+        const devs = d.devices ?? [];
+        setDevices(devs);
+        // Resolve device UUIDs to nicknames in restored history
+        setResults(prev => prev.map(r => {
+          const match = devs.find((d: Device) => d.device_id === r.device_id);
+          return match ? { ...r, device_name: match.nickname || match.device_id } : r;
+        }));
+      })
       .catch(() => {});
 
     // Load last 5 commands from DB on mount — results survive refresh
@@ -648,11 +656,11 @@ export default function CommandRunnerV2() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                     <div>
                       <span style={styles.fieldLabel}>Username</span>
-                      <input value={username} onChange={e => setUsername(e.target.value)} placeholder="admin" style={styles.input} autoComplete="off" />
+                      <input value={username} onChange={e => setUsername(e.target.value)} placeholder="admin" style={styles.input} autoComplete="nope" />
                     </div>
                     <div>
                       <span style={styles.fieldLabel}>Password</span>
-                      <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={styles.input} autoComplete="off" />
+                      <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={styles.input} autoComplete="new-password" />
                     </div>
                   </div>
                 </>}
