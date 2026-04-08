@@ -33,7 +33,7 @@ export default function StoragePage() {
   }, []);
 
   const maxBytes = data ? Math.max(...data.tables.map(t => t.bytes), 1) : 1;
-  const dataTableBytes = data ? data.tables.filter(t => DATA_TABLES.includes(t.table_name)).reduce((a, b) => a + b.bytes, 0) : 0;
+  const dataTableBytes = data ? data.tables.filter(t => DATA_TABLES.includes(t.table_name)).reduce((a, b) => a + Number(b.bytes), 0) : 0;
 
   const card: React.CSSProperties = { background: "#111827", border: "1px solid #1f2937", borderRadius: 10, padding: "20px 24px", marginBottom: 16 };
   const lbl: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#6b7280", textTransform: "uppercase" as any, marginBottom: 10 };
