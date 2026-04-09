@@ -3,6 +3,27 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { sql } from "@/lib/db";
 
+// ── Geocode helper ───────────────────────────────────────────────────────────
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const encoded = encodeURIComponent(address.trim());
+    const geoRes = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encoded}&key=${process.env.GOOGLE_GEOCODING_API_KEY}`,
+      { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined }
+    );
+    const geoJson = await geoRes.json();
+    console.log("[geocode] status:", geoJson.status, "key present:", !!process.env.GOOGLE_GEOCODING_API_KEY);
+    if (geoJson.status === "OK" && geoJson.results?.[0]) {
+      const { lat, lng } = geoJson.results[0].geometry.location;
+      console.log("[geocode] got:", lat, lng);
+      return { lat, lng };
+    }
+  } catch (e) {
+    console.error("[geocode] failed:", e);
+  }
+  return null;
+}
+
 // ── GET — List all sites for tenant ─────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -46,10 +67,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { name, address, district, city, state, lat, lng } = body;
+  const { name, address, district, city, state } = body;
+  let { lat, lng } = body;
 
   if (!name?.trim()) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
+  }
+
+  // Geocode address if lat/lng not explicitly provided
+  if (address?.trim() && (lat == null || lng == null)) {
+    const coords = await geocodeAddress(address.trim());
+    if (coords) {
+      lat = coords.lat;
+      lng = coords.lng;
+    }
   }
 
   const rows = await sql`
