@@ -10,6 +10,10 @@ interface Device {
   nickname: string;
   last_ip: string;
   status: string;
+  site_name: string | null;
+  site_id: string | null;
+  building: string | null;
+  floor: string | null;
 }
 
 interface CommandResult {
@@ -26,6 +30,41 @@ interface CommandResult {
 }
 
 type Protocol = "CLI" | "SNMP" | "DISCOVERY";
+
+// ── Hierarchy grouping ────────────────────────────────────────────────────────
+
+interface BuildingGroup {
+  building: string;
+  devices: Device[];
+}
+
+interface SiteGroup {
+  site_name: string;
+  buildings: BuildingGroup[];
+}
+
+function groupDevices(devices: Device[]): SiteGroup[] {
+  const siteMap = new Map<string, Map<string, Device[]>>();
+
+  for (const d of devices) {
+    const site     = d.site_name || "Unassigned";
+    const building = d.building  || "—";
+    if (!siteMap.has(site)) siteMap.set(site, new Map());
+    const bMap = siteMap.get(site)!;
+    if (!bMap.has(building)) bMap.set(building, []);
+    bMap.get(building)!.push(d);
+  }
+
+  return Array.from(siteMap.entries()).map(([site_name, bMap]) => ({
+    site_name,
+    buildings: Array.from(bMap.entries()).map(([building, devs]) => ({
+      building,
+      devices: devs,
+    })),
+  }));
+}
+
+// ── Vendors / Commands ────────────────────────────────────────────────────────
 
 const VENDORS = [
   { label: "Extreme EXOS",       value: "extreme"        },
@@ -217,52 +256,165 @@ const styles: Record<string, React.CSSProperties> = {
   },
 };
 
-// ── Device Card ───────────────────────────────────────────────────────────────
+// ── Checkbox helper ───────────────────────────────────────────────────────────
 
-function DeviceCard({ device, selected, onToggle }: { device: Device; selected: boolean; onToggle: () => void }) {
+function Checkbox({ checked, partial, onChange }: { checked: boolean; partial?: boolean; onChange: () => void }) {
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); onChange(); }}
+      style={{
+        width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+        border: `1.5px solid ${checked || partial ? CYAN : BORDER}`,
+        background: checked ? CYAN : partial ? `${CYAN}44` : "transparent",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: "pointer", padding: 0,
+      }}
+    >
+      {checked && <span style={{ color: "#030810", fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+      {partial && !checked && <span style={{ color: CYAN, fontSize: 10, fontWeight: 900, lineHeight: 1 }}>−</span>}
+    </button>
+  );
+}
+
+// ── Device Row ────────────────────────────────────────────────────────────────
+
+function DeviceRow({ device, selected, onToggle }: { device: Device; selected: boolean; onToggle: () => void }) {
   const online = device.status === "claimed";
   return (
     <button
       onClick={onToggle}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "12px 14px",
-        background: selected ? `${CYAN}12` : "transparent",
-        border: `1px solid ${selected ? CYAN : BORDER}`,
-        borderRadius: 6,
-        cursor: "pointer",
-        fontFamily: "inherit",
-        textAlign: "left",
-        width: "100%",
-        transition: "all 0.15s",
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "9px 10px 9px 28px",
+        background: selected ? `${CYAN}10` : "transparent",
+        border: `1px solid ${selected ? CYAN + "66" : "transparent"}`,
+        borderRadius: 5, cursor: "pointer", fontFamily: "inherit",
+        textAlign: "left", width: "100%", transition: "all 0.12s",
       }}
     >
       <div style={{
-        width: 10, height: 10, borderRadius: "50%",
+        width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
         background: online ? GREEN : RED,
-        boxShadow: online ? `0 0 8px ${GREEN}` : `0 0 8px ${RED}`,
-        flexShrink: 0,
+        boxShadow: online ? `0 0 5px ${GREEN}` : `0 0 5px ${RED}`,
       }} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: selected ? CYAN : "#E0F7F5" }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: selected ? CYAN : "#E0F7F5", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {device.nickname || device.device_id}
         </div>
-        <div style={{ fontSize: 11, color: "rgba(224,247,245,0.4)", marginTop: 2 }}>
-          {device.last_ip}
+        <div style={{ fontSize: 10, color: "rgba(224,247,245,0.35)", marginTop: 1 }}>
+          {device.last_ip}{device.floor ? ` · ${device.floor}` : ""}
         </div>
       </div>
-      <div style={{
-        width: 18, height: 18, borderRadius: 4,
-        border: `1.5px solid ${selected ? CYAN : BORDER}`,
-        background: selected ? CYAN : "transparent",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0,
-      }}>
-        {selected && <span style={{ color: "#030810", fontSize: 12, fontWeight: 900 }}>✓</span>}
-      </div>
+      <Checkbox checked={selected} onChange={onToggle} />
     </button>
+  );
+}
+
+// ── Building Group ────────────────────────────────────────────────────────────
+
+function BuildingGroup({ group, selected, onToggleAll, onToggleDevice }: {
+  group: BuildingGroup;
+  selected: Set<string>;
+  onToggleAll: () => void;
+  onToggleDevice: (id: string) => void;
+}) {
+  const ids       = group.devices.map(d => d.device_id);
+  const selCount  = ids.filter(id => selected.has(id)).length;
+  const allSel    = selCount === ids.length;
+  const partSel   = selCount > 0 && selCount < ids.length;
+
+  if (group.building === "—") {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {group.devices.map(d => (
+          <DeviceRow key={d.device_id} device={d} selected={selected.has(d.device_id)} onToggle={() => onToggleDevice(d.device_id)} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <button
+        onClick={onToggleAll}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "6px 10px 6px 16px", width: "100%",
+          background: "transparent", border: "none",
+          cursor: "pointer", fontFamily: "inherit",
+        }}
+      >
+        <Checkbox checked={allSel} partial={partSel} onChange={onToggleAll} />
+        <span style={{ fontSize: 10, color: "rgba(0,229,204,0.5)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+          ■ {group.building}
+        </span>
+        <span style={{ fontSize: 9, color: "rgba(224,247,245,0.25)", marginLeft: "auto" }}>
+          {selCount}/{ids.length}
+        </span>
+      </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {group.devices.map(d => (
+          <DeviceRow key={d.device_id} device={d} selected={selected.has(d.device_id)} onToggle={() => onToggleDevice(d.device_id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Site Group ────────────────────────────────────────────────────────────────
+
+function SiteGroup({ group, selected, onToggleAll, onToggleBuilding, onToggleDevice }: {
+  group: SiteGroup;
+  selected: Set<string>;
+  onToggleAll: () => void;
+  onToggleBuilding: (building: string) => void;
+  onToggleDevice: (id: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const allIds   = group.buildings.flatMap(b => b.devices.map(d => d.device_id));
+  const selCount = allIds.filter(id => selected.has(id)).length;
+  const allSel   = selCount === allIds.length;
+  const partSel  = selCount > 0 && selCount < allIds.length;
+
+  return (
+    <div style={{
+      background: "rgba(0,229,204,0.03)",
+      border: `1px solid ${BORDER}`,
+      borderRadius: 7, marginBottom: 8, overflow: "hidden",
+    }}>
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "10px 12px", width: "100%",
+          background: "rgba(0,229,204,0.05)", border: "none",
+          cursor: "pointer", fontFamily: "inherit",
+          borderBottom: collapsed ? "none" : `1px solid ${BORDER}`,
+        }}
+      >
+        <Checkbox checked={allSel} partial={partSel} onChange={onToggleAll} />
+        <span style={{ fontSize: 12, fontWeight: 800, color: CYAN, letterSpacing: "0.08em", flex: 1, textAlign: "left" }}>
+          ◆ {group.site_name}
+        </span>
+        <span style={{ fontSize: 9, color: "rgba(224,247,245,0.3)", marginRight: 6 }}>
+          {selCount}/{allIds.length} selected
+        </span>
+        <span style={{ fontSize: 10, color: "rgba(0,229,204,0.4)" }}>{collapsed ? "▶" : "▼"}</span>
+      </button>
+      {!collapsed && (
+        <div style={{ padding: "8px 6px" }}>
+          {group.buildings.map(b => (
+            <BuildingGroup
+              key={b.building}
+              group={b}
+              selected={selected}
+              onToggleAll={() => onToggleBuilding(b.building)}
+              onToggleDevice={onToggleDevice}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -275,13 +427,10 @@ function ProtocolTab({ label, icon, desc, active, onClick }: {
     <button
       onClick={onClick}
       style={{
-        flex: 1,
-        padding: "14px 10px",
+        flex: 1, padding: "14px 10px",
         background: active ? `${CYAN}15` : "transparent",
         border: `1px solid ${active ? CYAN : BORDER}`,
-        borderRadius: 6,
-        cursor: "pointer",
-        fontFamily: "inherit",
+        borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
         transition: "all 0.15s",
       }}
     >
@@ -303,8 +452,7 @@ function ResultCard({ result }: { result: CommandResult }) {
     <div style={{
       background: "#060F1A",
       border: `1px solid ${result.status === "failed" ? RED + "44" : result.status === "complete" ? GREEN + "33" : BORDER}`,
-      borderRadius: 8,
-      overflow: "hidden",
+      borderRadius: 8, overflow: "hidden",
     }}>
       <div
         onClick={() => setExpanded(!expanded)}
@@ -317,8 +465,7 @@ function ResultCard({ result }: { result: CommandResult }) {
       >
         <div style={{
           width: 8, height: 8, borderRadius: "50%",
-          background: statusColor,
-          boxShadow: `0 0 6px ${statusColor}`,
+          background: statusColor, boxShadow: `0 0 6px ${statusColor}`,
           animation: result.status === "pending" || result.status === "running" ? "pulse 1.5s infinite" : "none",
         }} />
         <div style={{ flex: 1 }}>
@@ -344,15 +491,10 @@ function ResultCard({ result }: { result: CommandResult }) {
           )}
           {(result.status === "complete" || result.status === "failed") && (
             <pre style={{
-              margin: 0,
-              fontSize: 13,
-              lineHeight: 1.7,
+              margin: 0, fontSize: 13, lineHeight: 1.7,
               color: result.status === "failed" ? "#FF8888" : "#A8F5E0",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
-              maxHeight: 400,
-              overflowY: "auto",
-              fontFamily: "inherit",
+              whiteSpace: "pre-wrap", wordBreak: "break-all",
+              maxHeight: 400, overflowY: "auto", fontFamily: "inherit",
             }}>
               {result.output || (result.status === "failed" ? "Command failed — no output returned." : "Command completed with no output.")}
             </pre>
@@ -369,35 +511,33 @@ function ResultCard({ result }: { result: CommandResult }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function CommandRunnerV2() {
-  const [devices, setDevices]           = useState<Device[]>([]);
-  const [selected, setSelected]         = useState<Set<string>>(new Set());
-  const [protocol, setProtocol]         = useState<Protocol>("CLI");
-  const [vendor, setVendor]             = useState("extreme");
-  const [targetIp, setTargetIp]         = useState("");
-  const [username, setUsername]         = useState("");
-  const [password, setPassword]         = useState("");
-  const [command, setCommand]           = useState("show version");
-  const [community, setCommunity]       = useState("public");
-  const [oid, setOid]                   = useState("sysName");
-  const [subnet, setSubnet]             = useState("");
-  const [running, setRunning]           = useState(false);
-  const [results, setResults]           = useState<CommandResult[]>([]);
-  const pollRef                         = useRef<Record<string, NodeJS.Timeout>>({});
+  const [devices, setDevices]     = useState<Device[]>([]);
+  const [selected, setSelected]   = useState<Set<string>>(new Set());
+  const [protocol, setProtocol]   = useState<Protocol>("CLI");
+  const [vendor, setVendor]       = useState("extreme");
+  const [targetIp, setTargetIp]   = useState("");
+  const [username, setUsername]   = useState("");
+  const [password, setPassword]   = useState("");
+  const [command, setCommand]     = useState("show version");
+  const [community, setCommunity] = useState("public");
+  const [oid, setOid]             = useState("sysName");
+  const [subnet, setSubnet]       = useState("");
+  const [running, setRunning]     = useState(false);
+  const [results, setResults]     = useState<CommandResult[]>([]);
+  const pollRef                   = useRef<Record<string, NodeJS.Timeout>>({});
 
   useEffect(() => {
-    // Load JSZip for ZIP export
     if (!(window as any).JSZip) {
       const s = document.createElement("script");
       s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
       document.head.appendChild(s);
     }
 
-    fetch("/api/devices/list")
+    fetch("/api/devices")
       .then(r => r.json())
       .then(d => {
         const devs = d.devices ?? [];
         setDevices(devs);
-        // Resolve device UUIDs to nicknames in restored history
         setResults(prev => prev.map(r => {
           const match = devs.find((d: Device) => d.device_id === r.device_id);
           return match ? { ...r, device_name: match.nickname || match.device_id } : r;
@@ -405,7 +545,6 @@ export default function CommandRunnerV2() {
       })
       .catch(() => {});
 
-    // Load last 5 commands from DB on mount — results survive refresh
     fetch("/api/commandrunner/execute?recent=5")
       .then(r => r.json())
       .then(d => {
@@ -427,6 +566,8 @@ export default function CommandRunnerV2() {
       .catch(() => {});
   }, []);
 
+  // ── Selection helpers ───────────────────────────────────────────────────────
+
   function toggleDevice(id: string) {
     setSelected(prev => {
       const next = new Set(prev);
@@ -443,10 +584,34 @@ export default function CommandRunnerV2() {
     }
   }
 
+  function toggleSite(siteName: string) {
+    const ids = devices.filter(d => (d.site_name || "Unassigned") === siteName).map(d => d.device_id);
+    const allSel = ids.every(id => selected.has(id));
+    setSelected(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => allSel ? next.delete(id) : next.add(id));
+      return next;
+    });
+  }
+
+  function toggleBuilding(siteName: string, building: string) {
+    const ids = devices
+      .filter(d => (d.site_name || "Unassigned") === siteName && (d.building || "—") === building)
+      .map(d => d.device_id);
+    const allSel = ids.every(id => selected.has(id));
+    setSelected(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => allSel ? next.delete(id) : next.add(id));
+      return next;
+    });
+  }
+
+  // ── Poll for result ─────────────────────────────────────────────────────────
+
   function pollResult(commandId: string, deviceId: string) {
     pollRef.current[commandId] = setInterval(async () => {
       try {
-        const res = await fetch(`/api/commandrunner/execute?id=${commandId}`);
+        const res  = await fetch(`/api/commandrunner/execute?id=${commandId}`);
         const data = await res.json();
         if (data.status === "complete" || data.status === "failed") {
           setResults(prev => prev.map(r =>
@@ -460,6 +625,8 @@ export default function CommandRunnerV2() {
       } catch {}
     }, 3000);
   }
+
+  // ── Run ─────────────────────────────────────────────────────────────────────
 
   async function runCommands() {
     if (selected.size === 0) return alert("Select at least one device.");
@@ -496,7 +663,7 @@ export default function CommandRunnerV2() {
     for (const deviceId of Array.from(selected)) {
       const device = devices.find(d => d.device_id === deviceId);
       try {
-        const res = await fetch("/api/commandrunner/execute", {
+        const res  = await fetch("/api/commandrunner/execute", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ device_id: deviceId, command_type: cmdType, payload }),
@@ -528,6 +695,7 @@ export default function CommandRunnerV2() {
   }
 
   const quickCommands = CLI_QUICK_COMMANDS[vendor] ?? [];
+  const siteGroups    = groupDevices(devices);
 
   return (
     <DashboardShell>
@@ -559,8 +727,8 @@ export default function CommandRunnerV2() {
           <div style={{ marginLeft: "auto", display: "flex", gap: 20 }}>
             {[
               { label: "DEVICES SELECTED", value: selected.size },
-              { label: "COMMANDS RUN", value: results.length },
-              { label: "ONLINE", value: devices.filter(d => d.status === "claimed").length },
+              { label: "COMMANDS RUN",     value: results.length },
+              { label: "ONLINE",           value: devices.filter(d => d.status === "claimed").length },
             ].map(stat => (
               <div key={stat.label} style={{ textAlign: "right" }}>
                 <div style={{ fontSize: 22, fontWeight: 800, color: CYAN }}>{stat.value}</div>
@@ -582,32 +750,37 @@ export default function CommandRunnerV2() {
                 Select Devices
               </div>
               <div style={styles.card}>
+                {/* SELECT ALL */}
                 <button
                   onClick={toggleAll}
                   style={{
-                    width: "100%", padding: "8px 12px", marginBottom: 10,
-                    background: selected.size === devices.length ? `${CYAN}15` : "transparent",
+                    width: "100%", padding: "8px 12px", marginBottom: 12,
+                    background: selected.size === devices.length && devices.length > 0 ? `${CYAN}15` : "transparent",
                     border: `1px solid ${BORDER}`, borderRadius: 6,
                     color: CYAN, fontSize: 12, fontWeight: 700,
                     cursor: "pointer", fontFamily: "inherit",
                     letterSpacing: "0.1em", textTransform: "uppercase",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
                   }}
                 >
-                  {selected.size === devices.length ? "✓ ALL SELECTED" : "SELECT ALL"}
+                  <span>{selected.size === devices.length && devices.length > 0 ? "✓ ALL SELECTED" : "SELECT ALL"}</span>
+                  <span style={{ fontSize: 10, color: "rgba(0,229,204,0.4)" }}>{selected.size}/{devices.length}</span>
                 </button>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {devices.length === 0
-                    ? <div style={{ fontSize: 13, color: "rgba(224,247,245,0.3)", textAlign: "center", padding: 16 }}>Loading devices...</div>
-                    : devices.map(d => (
-                        <DeviceCard
-                          key={d.device_id}
-                          device={d}
-                          selected={selected.has(d.device_id)}
-                          onToggle={() => toggleDevice(d.device_id)}
-                        />
-                      ))
-                  }
-                </div>
+
+                {/* HIERARCHY TREE */}
+                {devices.length === 0
+                  ? <div style={{ fontSize: 13, color: "rgba(224,247,245,0.3)", textAlign: "center", padding: 16 }}>Loading devices...</div>
+                  : siteGroups.map(sg => (
+                      <SiteGroup
+                        key={sg.site_name}
+                        group={sg}
+                        selected={selected}
+                        onToggleAll={() => toggleSite(sg.site_name)}
+                        onToggleBuilding={(building) => toggleBuilding(sg.site_name, building)}
+                        onToggleDevice={toggleDevice}
+                      />
+                    ))
+                }
               </div>
             </div>
 
@@ -695,10 +868,8 @@ export default function CommandRunnerV2() {
                     padding: "10px 12px",
                     background: `${AMBER}11`,
                     border: `1px solid ${AMBER}33`,
-                    borderRadius: 6,
-                    fontSize: 11,
-                    color: `${AMBER}CC`,
-                    lineHeight: 1.6,
+                    borderRadius: 6, fontSize: 11,
+                    color: `${AMBER}CC`, lineHeight: 1.6,
                   }}>
                     Discovery will scan the subnet from each selected Pi. Results include live hosts, open ports, and vendor fingerprinting via nmap.
                   </div>
@@ -740,7 +911,7 @@ export default function CommandRunnerV2() {
                         if (!JSZip) { alert("JSZip not loaded"); return; }
                         const zip = new JSZip();
                         results.forEach(r => {
-                          const ts = new Date(r.started_at).toISOString().replace(/[:.]/g, "-");
+                          const ts   = new Date(r.started_at).toISOString().replace(/[:.]/g, "-");
                           const name = `${r.device_name}_${r.command.replace(/[^a-z0-9]/gi,"_")}_${ts}.txt`;
                           const body = [
                             `Device:    ${r.device_name}`,
@@ -758,8 +929,8 @@ export default function CommandRunnerV2() {
                         });
                         zip.generateAsync({ type: "blob" }).then((blob: Blob) => {
                           const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
+                          const a   = document.createElement("a");
+                          a.href     = url;
                           a.download = `commandrunner_${new Date().toISOString().slice(0,19).replace(/[:.]/g,"-")}.zip`;
                           a.click();
                           URL.revokeObjectURL(url);
