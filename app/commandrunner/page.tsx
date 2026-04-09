@@ -65,7 +65,7 @@ export default function CommandRunnerPage() {
   const [generating, setGenerating] = useState(false);
   const [newKey, setNewKey] = useState<NewKey | null>(null);
   const [revoking, setRevoking] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"status" | "keys" | "setup" | "docs">("status");
+  const [activeTab, setActiveTab] = useState<"status" | "keys" | "setup">("status");
 
   useEffect(() => {
     // Check server health
@@ -140,9 +140,9 @@ export default function CommandRunnerPage() {
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 24, background: "#111827", border: "1px solid #1f2937", borderRadius: 9, padding: 4, width: "fit-content" }}>
-          {(["status", "keys", "setup", "docs"] as const).map(t => (
+          {(["status", "keys", "setup"] as const).map(t => (
             <button key={t} style={tabStyle(t)} onClick={() => setActiveTab(t)}>
-              {t === "status" ? "Status" : t === "keys" ? "API Keys" : t === "setup" ? "Claude Desktop Setup" : "Docs"}
+              {t === "status" ? "Status" : t === "keys" ? "API Endpoints" : "Claude Desktop Setup"}
             </button>
           ))}
         </div>
@@ -228,7 +228,7 @@ export default function CommandRunnerPage() {
           </div>
         )}
 
-        {/* API KEYS TAB */}
+        {/* API ENDPOINTS TAB */}
         {activeTab === "keys" && (
           <div>
             {newKey && (
@@ -247,7 +247,54 @@ export default function CommandRunnerPage() {
             )}
 
             <div style={card}>
-              <div style={label}>Generate New API Key</div>
+              <div style={label}>VGER OS API Endpoints</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                {[
+                  { method: "GET",    path: "/api/devices",                     desc: "List all VGER 1 units" },
+                  { method: "PATCH",  path: "/api/devices",                     desc: "Update device metadata" },
+                  { method: "GET",    path: "/api/devices/[id]",                desc: "Single device detail" },
+                  { method: "GET",    path: "/api/devices/heartbeat",           desc: "Pi heartbeat ingest" },
+                  { method: "GET",    path: "/api/devices/commands/listen",     desc: "Long-poll command dispatch" },
+                  { method: "POST",   path: "/api/devices/commands/ack",        desc: "Pi command acknowledgement" },
+                  { method: "POST",   path: "/api/commandrunner/execute",       desc: "Queue CLI/SNMP/Discovery" },
+                  { method: "GET",    path: "/api/commandrunner/execute",       desc: "Poll command result" },
+                  { method: "GET",    path: "/api/sites",                       desc: "List sites" },
+                  { method: "POST",   path: "/api/sites",                       desc: "Create site" },
+                  { method: "PATCH",  path: "/api/sites/[id]",                  desc: "Update site" },
+                  { method: "GET",    path: "/api/noc/summary",                 desc: "Fleet NOC summary" },
+                  { method: "GET",    path: "/api/speedrunner/results",         desc: "Speed test results" },
+                  { method: "POST",   path: "/api/speedrunner/ingest",          desc: "Pi speed ingest" },
+                  { method: "GET",    path: "/api/routerunner/results",         desc: "Traceroute results" },
+                  { method: "POST",   path: "/api/routerunner/ingest",          desc: "Pi route ingest" },
+                  { method: "GET",    path: "/api/webrunner/timeseries",        desc: "HTTP latency timeseries" },
+                  { method: "POST",   path: "/api/measurements/ingest",         desc: "Pi WebRunner ingest" },
+                  { method: "GET",    path: "/api/rfrunner/history",            desc: "RF scan history" },
+                  { method: "POST",   path: "/api/rfrunner/ingest",             desc: "Pi RF ingest" },
+                  { method: "GET",    path: "/api/blerunner/live",              desc: "BLE live feed" },
+                  { method: "POST",   path: "/api/blerunner/ingest",            desc: "Pi BLE ingest" },
+                  { method: "POST",   path: "/api/mcp",                         desc: "VGER OS MCP endpoint" },
+                  { method: "GET",    path: "/api/mcp/keys",                    desc: "List API keys" },
+                  { method: "POST",   path: "/api/mcp/keys",                    desc: "Generate API key" },
+                  { method: "DELETE", path: "/api/mcp/keys",                    desc: "Revoke API key" },
+                  { method: "POST",   path: "/api/auth/change-password",        desc: "Change user password" },
+                ].map(ep => (
+                  <div key={ep.path} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 6 }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 800, padding: "2px 5px", borderRadius: 3, flexShrink: 0,
+                      background: ep.method === "GET" ? "rgba(16,185,129,0.15)" : ep.method === "POST" ? "rgba(59,130,246,0.15)" : ep.method === "PATCH" ? "rgba(234,179,8,0.15)" : "rgba(239,68,68,0.15)",
+                      color: ep.method === "GET" ? "#10b981" : ep.method === "POST" ? "#3b82f6" : ep.method === "PATCH" ? "#fbbf24" : "#ef4444",
+                    }}>{ep.method}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#e5e7eb", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ep.path}</div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }}>{ep.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={card}>
+              <div style={label}>Generate New VGER OS API Key</div>
               <div style={{ display: "flex", gap: 10 }}>
                 <input
                   value={newKeyLabel}
@@ -346,7 +393,7 @@ export default function CommandRunnerPage() {
             <div style={card}>
               <div style={label}>Step 4 — Restart Claude Desktop</div>
               <div style={{ fontSize: 12, color: "#d1d5db", lineHeight: 1.7 }}>
-                Fully quit Claude Desktop (Cmd+Q — not just close the window) and relaunch it. The ValleLogic connector will appear under Settings → Connectors with a <span style={{ color: "#10b981" }}>LOCAL DEV</span> badge.
+                Fully quit Claude Desktop (Cmd+Q — not just close the window) and relaunch it. The VGER OS connector will appear under Settings → Connectors with a <span style={{ color: "#10b981" }}>LOCAL DEV</span> badge.
               </div>
             </div>
 
