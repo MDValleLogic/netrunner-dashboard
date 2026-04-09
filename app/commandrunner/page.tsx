@@ -103,7 +103,7 @@ export default function CommandRunnerPage() {
 
   const claudeConfig = `{
   "mcpServers": {
-    "vallelogic": {
+    "vger-os": {
       "command": "npx",
       "args": [
         "mcp-remote",
@@ -126,8 +126,8 @@ export default function CommandRunnerPage() {
               <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="white" strokeWidth="1.5"><rect x="1" y="2" width="14" height="12" rx="2"/><polyline points="4,6 7,8 4,10"/><line x1="8" y1="10" x2="12" y2="10"/></svg>
             </div>
             <div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "#f9fafb", letterSpacing: "-0.02em" }}>ValleLogic MCP</div>
-              <div style={{ fontSize: 11, color: "#6b7280" }}>MCP · AI-Queryable Network Intelligence</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#f9fafb", letterSpacing: "-0.02em" }}>VGER OS</div>
+              <div style={{ fontSize: 11, color: "#6b7280" }}>VGER OS · AI-Queryable Network Intelligence · <span style={{ color: "#0d7a8a" }}>vger-os-1.0</span></div>
             </div>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 7, background: serverOk === null ? "rgba(107,114,128,0.1)" : serverOk ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", border: `1px solid ${serverOk === null ? "#374151" : serverOk ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)"}` }}>
               {serverOk !== null && <StatusDot ok={serverOk} />}
@@ -153,6 +153,7 @@ export default function CommandRunnerPage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
               {[
                 { label: "Protocol", value: "MCP 2024-11-05" },
+                { label: "Server", value: "VGER OS 1.0" },
                 { label: "Endpoint", value: "https://app.vallelogic.com/api/mcp" },
                 { label: "Active Keys", value: loading ? "…" : String(keys.length) },
               ].map(stat => (
@@ -362,7 +363,7 @@ export default function CommandRunnerPage() {
             <div style={{ ...card, background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.2)" }}>
               <div style={{ fontSize: 12, color: "#10b981", fontWeight: 700, marginBottom: 8 }}>✓ How it works</div>
               <div style={{ fontSize: 12, color: "#d1d5db", lineHeight: 1.8 }}>
-                Claude Desktop connects to your ValleLogic MCP server at <code style={{ color: "#a78bfa" }}>app.vallelogic.com/api/mcp</code>. Your API key authenticates the connection and scopes all queries to your tenant's data only. No other tenant can see your devices or data.
+                Claude connects to <strong>VGER OS</strong> at <code style={{ color: "#a78bfa" }}>app.vallelogic.com/api/mcp</code>. Your API key authenticates the connection and scopes all queries to your VGER 1 fleet only. No other tenant can see your devices or data.
               </div>
             </div>
           </div>
@@ -386,7 +387,7 @@ export default function CommandRunnerPage() {
                   { title: "RFRunner", desc: "WiFi RF scanning, band distribution, AP inventory", href: "/docs/rfrunner", icon: "wifi" },
                   { title: "Device Management", desc: "Claiming, provisioning, BYOPI install", href: "/docs/devices", icon: "cpu" },
                   { title: "API Reference", desc: "All REST endpoints, auth, tenant isolation", href: "/docs/api", icon: "shield" },
-                  { title: "MCP Tool Reference", desc: "All 7 MCP tools, params, and example responses", href: "/docs/mcp-tools", icon: "activity" },
+                  { title: "MCP Tool Reference", desc: "All 27 MCP tools, params, and example responses", href: "/docs/mcp-tools", icon: "activity" },
                 ].map(doc => (
                   <Link key={doc.href} href={doc.href} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 8, textDecoration: "none", transition: "border-color 0.15s" }}
                     onMouseEnter={e => (e.currentTarget.style.borderColor = "#374151")}
