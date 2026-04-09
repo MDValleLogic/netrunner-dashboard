@@ -32,9 +32,9 @@ export function ChangePasswordButton() {
       <button
         onClick={() => setOpen(true)}
         style={{
-          background: "none", border: "1px solid var(--border-mid)",
+          background: "none", border: "1px solid #374151",
           borderRadius: 6, padding: "4px 10px",
-          fontSize: 11, color: "var(--text-dim)", cursor: "pointer",
+          fontSize: 11, color: "#9ca3af", cursor: "pointer",
           fontFamily: "var(--font-sans)",
         }}
       >
@@ -43,9 +43,9 @@ export function ChangePasswordButton() {
 
       {open && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-mid)", borderRadius: 12, padding: 28, width: 400, boxShadow: "0 25px 50px rgba(0,0,0,0.4)" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>Change Password</div>
-            <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 20 }}>Update your account password</div>
+          <div style={{ background: "#111827", border: "1px solid #374151", borderRadius: 12, padding: 28, width: 400, boxShadow: "0 25px 50px rgba(0,0,0,0.4)" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#f9fafb", marginBottom: 4 }}>Change Password</div>
+            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>Update your account password</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {([
                 { label: "Current Password", value: current, set: setCurrent },
@@ -53,13 +53,13 @@ export function ChangePasswordButton() {
                 { label: "Confirm New Password", value: confirm, set: setConfirm },
               ] as { label: string; value: string; set: (v: string) => void }[]).map(({ label, value, set }) => (
                 <div key={label}>
-                  <label style={{ fontSize: 11, color: "var(--text-dim)", display: "block", marginBottom: 6, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>{label}</label>
+                  <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 6, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>{label}</label>
                   <input
                     type="password"
                     value={value}
                     onChange={e => set(e.target.value)}
                     autoComplete="new-password"
-                    style={{ width: "100%", background: "var(--bg-input)", border: "1px solid var(--border-mid)", borderRadius: 8, padding: "10px 12px", color: "var(--text-primary)", fontSize: 14, outline: "none", boxSizing: "border-box" as const }}
+                    style={{ width: "100%", background: "#1f2937", border: "1px solid #374151", borderRadius: 8, padding: "10px 12px", color: "#f9fafb", fontSize: 14, outline: "none", boxSizing: "border-box" as const }}
                   />
                 </div>
               ))}
@@ -67,7 +67,7 @@ export function ChangePasswordButton() {
             {error   && <div style={{ marginTop: 12, fontSize: 12, color: "#ef4444" }}>{error}</div>}
             {success && <div style={{ marginTop: 12, fontSize: 12, color: "#10b981" }}>\u2713 Password updated successfully</div>}
             <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-              <button onClick={() => { setOpen(false); setError(""); }} style={{ flex: 1, padding: 10, background: "none", border: "1px solid var(--border-mid)", borderRadius: 8, color: "var(--text-dim)", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+              <button onClick={() => { setOpen(false); setError(""); }} style={{ flex: 1, padding: 10, background: "none", border: "1px solid #374151", borderRadius: 8, color: "#9ca3af", cursor: "pointer", fontSize: 14 }}>Cancel</button>
               <button onClick={handleSave} disabled={saving} style={{ flex: 1, padding: 10, background: "var(--accent)", border: "none", borderRadius: 8, color: "#fff", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 600, opacity: saving ? 0.7 : 1 }}>
                 {saving ? "Saving\u2026" : "Update Password"}
               </button>
