@@ -9,8 +9,8 @@ import { MCP_TOOLS, dispatchTool, dispatchToolExtended } from "@/lib/mcp/tools";
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 const SERVER_INFO = {
-  name: "vallelogic-commandrunner",
-  version: "1.0.0",
+  name: "vger-os",
+  version: "VGER-OS-1.0",
 };
 
 // ---------------------------------------------------------------------------

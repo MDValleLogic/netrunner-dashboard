@@ -12,7 +12,7 @@ export interface MCPTool {
 export const MCP_TOOLS: MCPTool[] = [
   {
     name: "list_devices",
-    description: "List all NetRunner devices registered to this tenant. Returns device ID, nickname, IP address, online/offline status, last seen timestamp, and agent version.",
+    description: "List all VGER 1 units registered to this tenant. Returns device ID, nickname, IP address, online/offline status, last seen timestamp, and agent version.",
     inputSchema: {
       type: "object",
       properties: {
@@ -22,7 +22,7 @@ export const MCP_TOOLS: MCPTool[] = [
   },
   {
     name: "get_device_status",
-    description: "Get the current status of a specific NetRunner device: online/offline, last seen time, agent version, IP address, nickname, and uptime.",
+    description: "Get the current status of a specific VGER 1 unit: online/offline, last seen time, agent version, IP address, nickname, and uptime.",
     inputSchema: {
       type: "object",
       properties: {
