@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 import { sql } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
@@ -46,6 +47,11 @@ async function deleteUser(formData: FormData) {
   await sql`delete from app_users where id = ${userId} and tenant_id = ${tenantId}`;
   redirect("/settings/users");
 }
+
+// ── Change Password Modal (client component) ─────────────────────────────────
+"use client";
+"use server";
+import React from "react";
 
 export default async function UsersPage() {
   const session = await getServerSession(authOptions);
@@ -121,8 +127,10 @@ export default async function UsersPage() {
                   {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
                 </div>
 
-                {/* Delete — can't delete yourself */}
-                {u.email !== session.user?.email && (
+                {/* Change password for yourself, delete for others */}
+                {u.email === session.user?.email ? (
+                  <ChangePasswordButton />
+                ) : (
                   <form action={deleteUser}>
                     <input type="hidden" name="userId" value={u.id} />
                     <button type="submit" style={{
