@@ -42,7 +42,7 @@ export function ChangePasswordButton() {
       </button>
 
       {open && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-mid)", borderRadius: 12, padding: 28, width: 400, boxShadow: "0 25px 50px rgba(0,0,0,0.4)" }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>Change Password</div>
             <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 20 }}>Update your account password</div>
