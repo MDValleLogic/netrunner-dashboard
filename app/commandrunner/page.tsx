@@ -415,29 +415,6 @@ export default function CommandRunnerPage() {
             </div>
           </div>
         )}
-
-        {/* DOCS TAB */}
-        {activeTab === "docs" && (
-          <div>
-            <div style={card}>
-              <div style={label}>Documentation</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#f3f4f6", marginBottom: 6 }}>ValleLogic / NetRunner Platform Docs</div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 20, lineHeight: 1.7 }}>
-                Full documentation for the NetRunner platform — runners, APIs, MCP, and device management.
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {[
-                  { title: "CommandRunner MCP", desc: "AI-queryable network data via MCP protocol", href: "/docs/commandrunner", icon: "terminal" },
-                  { title: "WebRunner", desc: "HTTP monitoring, DNS latency, uptime tracking", href: "/docs/webrunner", icon: "grid" },
-                  { title: "RouteRunner", desc: "Traceroute, ISP path analysis, hop RTT", href: "/docs/routerunner", icon: "route" },
-                  { title: "SpeedRunner", desc: "Download/upload/ping benchmarks", href: "/docs/speedrunner", icon: "zap" },
-                  { title: "RFRunner", desc: "WiFi RF scanning, band distribution, AP inventory", href: "/docs/rfrunner", icon: "wifi" },
-                  { title: "Device Management", desc: "Claiming, provisioning, BYOPI install", href: "/docs/devices", icon: "cpu" },
-                  { title: "API Reference", desc: "All REST endpoints, auth, tenant isolation", href: "/docs/api", icon: "shield" },
-                  { title: "MCP Tool Reference", desc: "All 27 MCP tools, params, and example responses", href: "/docs/mcp-tools", icon: "activity" },
-                ].map(doc => (
-                  <Link key={doc.href} href={doc.href} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 8, textDecoration: "none", transition: "border-color 0.15s" }}
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = "#374151")}
                     onMouseLeave={e => (e.currentTarget.style.borderColor = "#1f2937")}
                   >
                     <div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
