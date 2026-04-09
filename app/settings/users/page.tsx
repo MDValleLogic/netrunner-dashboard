@@ -48,10 +48,6 @@ async function deleteUser(formData: FormData) {
   redirect("/settings/users");
 }
 
-// ── Change Password Modal (client component) ─────────────────────────────────
-"use client";
-"use server";
-import React from "react";
 
 export default async function UsersPage() {
   const session = await getServerSession(authOptions);
