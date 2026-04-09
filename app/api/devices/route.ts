@@ -9,8 +9,9 @@ export async function GET() {
     const { tenantId } = await requireTenantSession();
     const rows = await sql`
       SELECT
-        device_id, nr_serial, status, nickname, site_name, location,
-        address, lat, lng, agent_version, last_seen, last_ip,
+        device_id, nr_serial, status, nickname, site_name, site_id,
+        location, building, floor, tags, address, lat, lng,
+        agent_version, last_seen, last_ip,
         image_version, provisioned_at, claimed_at, tenant_id
       FROM devices
       WHERE tenant_id = ${tenantId}
@@ -25,12 +26,12 @@ export async function GET() {
   }
 }
 
-// PATCH /api/devices — update nickname, address, site_name + geocode (tenant-scoped)
+// PATCH /api/devices — update device fields (tenant-scoped)
 export async function PATCH(req: NextRequest) {
   try {
     const { tenantId } = await requireTenantSession();
     const body = await req.json();
-    const { device_id, nickname, address, site_name, location } = body;
+    const { device_id, nickname, address, site_name, site_id, location, building, floor, tags } = body;
 
     if (!device_id) {
       return NextResponse.json({ ok: false, error: "device_id required" }, { status: 400 });
@@ -69,8 +70,20 @@ export async function PATCH(req: NextRequest) {
     if (site_name !== undefined) {
       await sql`UPDATE devices SET site_name = ${site_name}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
     }
+    if (site_id !== undefined) {
+      await sql`UPDATE devices SET site_id = ${site_id ?? null}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
+    }
     if (location !== undefined) {
       await sql`UPDATE devices SET location = ${location}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
+    }
+    if (building !== undefined) {
+      await sql`UPDATE devices SET building = ${building ?? null}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
+    }
+    if (floor !== undefined) {
+      await sql`UPDATE devices SET floor = ${floor ?? null}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
+    }
+    if (tags !== undefined) {
+      await sql`UPDATE devices SET tags = ${tags ?? null}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
     }
     if (lat !== null && lng !== null) {
       await sql`UPDATE devices SET lat = ${lat}, lng = ${lng}, updated_at = now() WHERE device_id = ${device_id} AND tenant_id = ${tenantId}`;
