@@ -415,38 +415,6 @@ export default function CommandRunnerPage() {
             </div>
           </div>
         )}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = "#1f2937")}
-                  >
-                    <div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#3b82f6" strokeWidth="1.5"><rect x="1" y="2" width="14" height="12" rx="2"/><polyline points="4,6 7,8 4,10"/><line x1="8" y1="10" x2="12" y2="10"/></svg>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#e5e7eb", marginBottom: 3 }}>{doc.title}</div>
-                      <div style={{ fontSize: 11, color: "#6b7280", lineHeight: 1.5 }}>{doc.desc}</div>
-                    </div>
-                    <svg style={{ marginLeft: "auto", flexShrink: 0, marginTop: 6 }} width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#374151" strokeWidth="2"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
-                  </Link>
-                ))}
-              </div>
-            </div>
-
-            <div style={card}>
-              <div style={label}>External Resources</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {[
-                  { title: "Model Context Protocol (MCP) Spec", url: "https://spec.modelcontextprotocol.io" },
-                  { title: "Claude Desktop Download", url: "https://claude.ai/download" },
-                  { title: "Anthropic MCP Documentation", url: "https://docs.anthropic.com/en/docs/agents-and-tools/mcp" },
-                ].map(link => (
-                  <a key={link.url} href={link.url} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 7, textDecoration: "none" }}>
-                    <span style={{ fontSize: 12, color: "#d1d5db" }}>{link.title}</span>
-                    <span style={{ fontSize: 11, color: "#6b7280" }}>{link.url.replace("https://", "")} ↗</span>
-                  </a>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </DashboardShell>
   );
