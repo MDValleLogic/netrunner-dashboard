@@ -928,21 +928,37 @@ async function getRouterunnerLive(deviceId: string, tenantId: string) {
 
 async function getSpeedrunnerConfig(deviceId: string, tenantId: string) {
   if (!(await verifyDeviceTenant(deviceId, tenantId))) return { error: `Device ${deviceId} not found.` };
-  const rows = await sql`SELECT * FROM device_config WHERE device_id = ${deviceId} LIMIT 1` as any[];
-  return rows[0] ?? { device_id: deviceId, message: "No config found — using defaults." };
+  // Delegate to new global/device runner config system
+  const deviceRows = await sql`
+    SELECT config, updated_at FROM device_runner_config
+    WHERE device_id = ${deviceId} AND tenant_id = (SELECT tenant_id FROM devices WHERE device_id = ${deviceId} LIMIT 1)
+      AND runner_type = 'speedrunner'
+    LIMIT 1
+  ` as any[];
+  if (deviceRows.length) return { device_id: deviceId, config: deviceRows[0].config, source: "device", updated_at: deviceRows[0].updated_at };
+  const tenantRows = await sql`
+    SELECT config, updated_at FROM global_runner_config
+    WHERE tenant_id = (SELECT tenant_id FROM devices WHERE device_id = ${deviceId} LIMIT 1)
+      AND runner_type = 'speedrunner'
+    LIMIT 1
+  ` as any[];
+  if (tenantRows.length) return { device_id: deviceId, config: tenantRows[0].config, source: "global", updated_at: tenantRows[0].updated_at };
+  return { device_id: deviceId, config: { interval_seconds: 3600, regions: ["Northeast US","Mid-Atlantic US","Southeast US","Midwest US","South Central US","Southwest US","West Coast US","Europe - London","Europe - Manchester","Europe - Amsterdam","Europe - Frankfurt","Asia Pacific"] }, source: "default" };
 }
 
 async function setSpeedrunnerConfig(deviceId: string, tenantId: string, args: Record<string, unknown>) {
   if (!(await verifyDeviceTenant(deviceId, tenantId))) return { error: `Device ${deviceId} not found.` };
+  const config: Record<string, any> = {};
+  if (args.test_interval_seconds) config.interval_seconds = args.test_interval_seconds;
+  if (args.regions) config.regions = args.regions;
   await sql`
-    INSERT INTO device_config (device_id, speed_test_interval_seconds, speed_test_server_url, updated_at)
-    VALUES (${deviceId}, ${args.test_interval_seconds as number ?? 3600}, ${args.server_url as string ?? null}, NOW())
-    ON CONFLICT (device_id) DO UPDATE SET
-      speed_test_interval_seconds = COALESCE(EXCLUDED.speed_test_interval_seconds, device_config.speed_test_interval_seconds),
-      speed_test_server_url = COALESCE(EXCLUDED.speed_test_server_url, device_config.speed_test_server_url),
-      updated_at = NOW()
+    INSERT INTO device_runner_config (device_id, tenant_id, runner_type, config, updated_at, updated_by)
+    VALUES (${deviceId}, ${tenantId}::uuid, 'speedrunner', ${JSON.stringify(config)}::jsonb, NOW(), 'mcp')
+    ON CONFLICT (device_id, runner_type) DO UPDATE SET
+      config = device_runner_config.config || EXCLUDED.config,
+      updated_at = NOW(), updated_by = 'mcp'
   `;
-  return { success: true, updated_fields: Object.keys(args).filter(k => k !== "device_id") };
+  return { success: true, device_id: deviceId, updated: config };
 }
 
 async function getSpeedrunnerLive(deviceId: string, tenantId: string) {
