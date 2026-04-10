@@ -34,6 +34,7 @@ const NAV = [
   { section: "System", links: [
     { href: "/settings/devices",  label: "Device Setup",   icon: "cpu"   },
     { href: "/settings/users",    label: "Users",          icon: "users" },
+    { href: "/settings/runner-config", label: "Global Runner Config", icon: "settings" },
     { href: "/settings/storage",  label: "Storage & Data", icon: "clock" },
   ]},
   { section: "WebRunner", links: [
