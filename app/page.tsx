@@ -6,9 +6,8 @@ export default async function HomePage() {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    redirect("/netrunner/login");
+    redirect("/login");
   }
 
-  redirect("/netrunner/dashboard");
+  redirect("/dashboard");
 }
-
