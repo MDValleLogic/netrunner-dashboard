@@ -20,8 +20,24 @@ const RUNNER_COLORS: Record<RunnerType, string> = {
   routerunner: "#e879f9",
 };
 
-type Configs  = Record<RunnerType, Record<string, any>>;
-type Sources  = Record<RunnerType, "global" | "default">;
+// Master region list — matches speedrunner.py REGIONS exactly
+const ALL_REGIONS = [
+  { region: "Northeast US",       city: "New York, NY"    },
+  { region: "Mid-Atlantic US",    city: "Ashburn, VA"     },
+  { region: "Southeast US",       city: "Atlanta, GA"     },
+  { region: "Midwest US",         city: "Chicago, IL"     },
+  { region: "South Central US",   city: "Dallas, TX"      },
+  { region: "Southwest US",       city: "Phoenix, AZ"     },
+  { region: "West Coast US",      city: "Los Angeles, CA" },
+  { region: "Europe - London",    city: "London, UK"      },
+  { region: "Europe - Manchester",city: "Manchester, UK"  },
+  { region: "Europe - Amsterdam", city: "Amsterdam, NL"   },
+  { region: "Europe - Frankfurt", city: "Frankfurt, DE"   },
+  { region: "Asia Pacific",       city: "Tokyo, Japan"    },
+];
+
+type Configs   = Record<RunnerType, Record<string, any>>;
+type Sources   = Record<RunnerType, "global" | "default">;
 type SaveState = Record<RunnerType, "idle" | "saving" | "saved" | "error">;
 
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -30,16 +46,6 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
       <div style={{ width: 200, fontSize: 12, color: "#9ca3af", paddingTop: 6, flexShrink: 0 }}>{label}</div>
       <div style={{ flex: 1 }}>{children}</div>
     </div>
-  );
-}
-
-function TextInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <input
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      style={{ width: "100%", background: "#0d1117", border: "1px solid #374151", borderRadius: 6, padding: "6px 10px", fontSize: 12, color: "#e5e7eb", fontFamily: "monospace", outline: "none", boxSizing: "border-box" }}
-    />
   );
 }
 
@@ -57,6 +63,16 @@ function NumberInput({ value, onChange, suffix }: { value: number; onChange: (v:
   );
 }
 
+function TextInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      style={{ width: "100%", background: "#0d1117", border: "1px solid #374151", borderRadius: 6, padding: "6px 10px", fontSize: 12, color: "#e5e7eb", fontFamily: "monospace", outline: "none", boxSizing: "border-box" }}
+    />
+  );
+}
+
 function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -71,30 +87,54 @@ function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: bool
   );
 }
 
-function TagListInput({ values, onChange, placeholder }: { values: string[]; onChange: (v: string[]) => void; placeholder?: string }) {
-  const [draft, setDraft] = useState("");
+function RegionChecklist({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+  const toggle = (region: string) => {
+    if (selected.includes(region)) {
+      onChange(selected.filter(r => r !== region));
+    } else {
+      onChange([...selected, region]);
+    }
+  };
+  const allSelected = ALL_REGIONS.every(r => selected.includes(r.region));
+
   return (
     <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-        {values.map((v, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 8px 3px 10px", background: "#1f2937", border: "1px solid #374151", borderRadius: 4, fontSize: 11, color: "#e5e7eb", fontFamily: "monospace" }}>
-            {v}
-            <span onClick={() => onChange(values.filter((_, j) => j !== i))} style={{ cursor: "pointer", color: "#6b7280", marginLeft: 2, fontSize: 13, lineHeight: 1 }}>x</span>
-          </div>
-        ))}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <div
+          onClick={() => onChange(allSelected ? [] : ALL_REGIONS.map(r => r.region))}
+          style={{ width: 16, height: 16, borderRadius: 4, border: "1px solid #374151", background: allSelected ? "#f97316" : "#0d1117", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+        >
+          {allSelected && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+        </div>
+        <span style={{ fontSize: 11, color: "#6b7280", fontWeight: 600 }}>
+          {allSelected ? "Deselect all" : "Select all"} — {selected.length}/{ALL_REGIONS.length} active
+        </span>
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && draft.trim()) { onChange([...values, draft.trim()]); setDraft(""); e.preventDefault(); }}}
-          placeholder={placeholder ?? "Type and press Enter"}
-          style={{ flex: 1, background: "#0d1117", border: "1px solid #374151", borderRadius: 6, padding: "6px 10px", fontSize: 12, color: "#e5e7eb", fontFamily: "monospace", outline: "none" }}
-        />
-        <button
-          onClick={() => { if (draft.trim()) { onChange([...values, draft.trim()]); setDraft(""); }}}
-          style={{ padding: "6px 12px", background: "#1f2937", border: "1px solid #374151", borderRadius: 6, fontSize: 11, color: "#9ca3af", cursor: "pointer", fontFamily: "inherit" }}
-        >Add</button>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+        {ALL_REGIONS.map(r => {
+          const on = selected.includes(r.region);
+          return (
+            <div
+              key={r.region}
+              onClick={() => toggle(r.region)}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "8px 12px", borderRadius: 6, cursor: "pointer",
+                background: on ? "rgba(249,115,22,0.08)" : "#0d1117",
+                border: on ? "1px solid rgba(249,115,22,0.3)" : "1px solid #1f2937",
+                transition: "all 0.15s",
+              }}
+            >
+              <div style={{ width: 16, height: 16, borderRadius: 4, border: "1px solid #374151", background: on ? "#f97316" : "#0d1117", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {on && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: on ? "#f9fafb" : "#6b7280" }}>{r.region}</div>
+                <div style={{ fontSize: 10, color: "#4b5563" }}>{r.city}</div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -106,8 +146,11 @@ function SpeedRunnerFields({ config, onChange }: { config: any; onChange: (c: an
       <FieldRow label="Test interval">
         <NumberInput value={config.interval_seconds ?? 3600} onChange={v => onChange({ ...config, interval_seconds: v })} suffix="seconds" />
       </FieldRow>
-      <FieldRow label="Speed test regions">
-        <TagListInput values={config.regions ?? []} onChange={v => onChange({ ...config, regions: v })} placeholder="Add region and press Enter" />
+      <FieldRow label="Active regions">
+        <RegionChecklist
+          selected={config.regions ?? ALL_REGIONS.map((r: any) => r.region)}
+          onChange={v => onChange({ ...config, regions: v })}
+        />
       </FieldRow>
     </>
   );
@@ -152,10 +195,30 @@ function RFRunnerFields({ config, onChange }: { config: any; onChange: (c: any) 
 }
 
 function WebRunnerFields({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+  const [draft, setDraft] = useState("");
+  const urls = config.urls ?? [];
   return (
     <>
       <FieldRow label="Monitored URLs">
-        <TagListInput values={config.urls ?? []} onChange={v => onChange({ ...config, urls: v })} placeholder="https://example.com and press Enter" />
+        <div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+            {urls.map((u: string, i: number) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ flex: 1, padding: "5px 10px", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 6, fontSize: 12, color: "#e5e7eb", fontFamily: "monospace" }}>{u}</div>
+                <span onClick={() => onChange({ ...config, urls: urls.filter((_: string, j: number) => j !== i) })} style={{ cursor: "pointer", color: "#6b7280", fontSize: 16, lineHeight: 1, padding: "0 4px" }}>x</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={draft} onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && draft.trim()) { onChange({ ...config, urls: [...urls, draft.trim()] }); setDraft(""); e.preventDefault(); }}}
+              placeholder="https://example.com and press Enter"
+              style={{ flex: 1, background: "#0d1117", border: "1px solid #374151", borderRadius: 6, padding: "6px 10px", fontSize: 12, color: "#e5e7eb", fontFamily: "monospace", outline: "none" }}
+            />
+            <button onClick={() => { if (draft.trim()) { onChange({ ...config, urls: [...urls, draft.trim()] }); setDraft(""); }}}
+              style={{ padding: "6px 12px", background: "#1f2937", border: "1px solid #374151", borderRadius: 6, fontSize: 11, color: "#9ca3af", cursor: "pointer", fontFamily: "inherit" }}>Add</button>
+          </div>
+        </div>
       </FieldRow>
       <FieldRow label="Check interval">
         <NumberInput value={config.interval_seconds ?? 300} onChange={v => onChange({ ...config, interval_seconds: v })} suffix="seconds" />
@@ -168,10 +231,30 @@ function WebRunnerFields({ config, onChange }: { config: any; onChange: (c: any)
 }
 
 function RouteRunnerFields({ config, onChange }: { config: any; onChange: (c: any) => void }) {
+  const [draft, setDraft] = useState("");
+  const targets = config.targets ?? [];
   return (
     <>
       <FieldRow label="Trace targets">
-        <TagListInput values={config.targets ?? []} onChange={v => onChange({ ...config, targets: v })} placeholder="IP or hostname and press Enter" />
+        <div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+            {targets.map((t: string, i: number) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 8px 3px 10px", background: "#1f2937", border: "1px solid #374151", borderRadius: 4, fontSize: 11, color: "#e5e7eb", fontFamily: "monospace" }}>
+                {t}
+                <span onClick={() => onChange({ ...config, targets: targets.filter((_: string, j: number) => j !== i) })} style={{ cursor: "pointer", color: "#6b7280", marginLeft: 2, fontSize: 13, lineHeight: 1 }}>x</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={draft} onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && draft.trim()) { onChange({ ...config, targets: [...targets, draft.trim()] }); setDraft(""); e.preventDefault(); }}}
+              placeholder="IP or hostname and press Enter"
+              style={{ flex: 1, background: "#0d1117", border: "1px solid #374151", borderRadius: 6, padding: "6px 10px", fontSize: 12, color: "#e5e7eb", fontFamily: "monospace", outline: "none" }}
+            />
+            <button onClick={() => { if (draft.trim()) { onChange({ ...config, targets: [...targets, draft.trim()] }); setDraft(""); }}}
+              style={{ padding: "6px 12px", background: "#1f2937", border: "1px solid #374151", borderRadius: 6, fontSize: 11, color: "#9ca3af", cursor: "pointer", fontFamily: "inherit" }}>Add</button>
+          </div>
+        </div>
       </FieldRow>
       <FieldRow label="Trace interval">
         <NumberInput value={config.interval_seconds ?? 300} onChange={v => onChange({ ...config, interval_seconds: v })} suffix="seconds" />
@@ -189,12 +272,12 @@ const RUNNER_FIELDS: Record<RunnerType, React.FC<{ config: any; onChange: (c: an
 };
 
 export default function GlobalRunnerConfigPage() {
-  const [activeTab, setActiveTab]   = useState<RunnerType>("speedrunner");
-  const [configs, setConfigs]       = useState<Configs | null>(null);
-  const [sources, setSources]       = useState<Sources | null>(null);
-  const [saveState, setSaveState]   = useState<SaveState>({ speedrunner: "idle", blerunner: "idle", rfrunner: "idle", webrunner: "idle", routerunner: "idle" });
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<RunnerType>("speedrunner");
+  const [configs, setConfigs]     = useState<Configs | null>(null);
+  const [sources, setSources]     = useState<Sources | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>({ speedrunner: "idle", blerunner: "idle", rfrunner: "idle", webrunner: "idle", routerunner: "idle" });
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/config/global")
@@ -261,27 +344,20 @@ export default function GlobalRunnerConfigPage() {
               const src = sources[runner];
               const color = RUNNER_COLORS[runner];
               return (
-                <button
-                  key={runner}
-                  onClick={() => setActiveTab(runner)}
-                  style={{
-                    padding: "8px 16px", borderRadius: 8,
-                    border: isActive ? `1px solid ${color}44` : "1px solid #1f2937",
-                    background: isActive ? `${color}18` : "#111827",
-                    color: isActive ? color : "#6b7280",
-                    cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "monospace",
-                    display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
-                  }}
-                >
+                <button key={runner} onClick={() => setActiveTab(runner)} style={{
+                  padding: "8px 16px", borderRadius: 8,
+                  border: isActive ? `1px solid ${color}44` : "1px solid #1f2937",
+                  background: isActive ? `${color}18` : "#111827",
+                  color: isActive ? color : "#6b7280",
+                  cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "monospace",
+                  display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+                }}>
                   {RUNNER_LABELS[runner]}
                   <span style={{
-                    fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
-                    padding: "2px 5px", borderRadius: 4,
+                    fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", padding: "2px 5px", borderRadius: 4,
                     background: src === "global" ? "rgba(6,182,212,0.15)" : "rgba(251,191,36,0.12)",
                     color: src === "global" ? "#22d3ee" : "#fbbf24",
-                  }}>
-                    {src === "global" ? "GLOBAL" : "DEFAULT"}
-                  </span>
+                  }}>{src === "global" ? "GLOBAL" : "DEFAULT"}</span>
                 </button>
               );
             })}
@@ -303,31 +379,20 @@ export default function GlobalRunnerConfigPage() {
                   fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", padding: "3px 8px", borderRadius: 4,
                   background: currentSource === "global" ? "rgba(6,182,212,0.15)" : "rgba(251,191,36,0.12)",
                   color: currentSource === "global" ? "#22d3ee" : "#fbbf24",
+                }}>{currentSource === "global" ? "GLOBAL" : "DEFAULT"}</span>
+                <button onClick={() => save(activeTab)} disabled={st === "saving"} style={{
+                  padding: "7px 18px", borderRadius: 7, border: "none",
+                  cursor: st === "saving" ? "wait" : "pointer",
+                  fontSize: 12, fontWeight: 700, fontFamily: "monospace",
+                  background: st === "saved" ? "#10b981" : st === "error" ? "#ef4444" : accentColor,
+                  color: "#fff", opacity: st === "saving" ? 0.7 : 1, transition: "all 0.2s",
                 }}>
-                  {currentSource === "global" ? "GLOBAL" : "DEFAULT"}
-                </span>
-                <button
-                  onClick={() => save(activeTab)}
-                  disabled={st === "saving"}
-                  style={{
-                    padding: "7px 18px", borderRadius: 7, border: "none",
-                    cursor: st === "saving" ? "wait" : "pointer",
-                    fontSize: 12, fontWeight: 700, fontFamily: "monospace",
-                    background: st === "saved" ? "#10b981" : st === "error" ? "#ef4444" : accentColor,
-                    color: "#fff", opacity: st === "saving" ? 0.7 : 1, transition: "all 0.2s",
-                  }}
-                >
                   {st === "saving" ? "Saving..." : st === "saved" ? "Saved" : st === "error" ? "Error" : "Save to Fleet"}
                 </button>
               </div>
             </div>
             <div>
-              {FieldsComp && (
-                <FieldsComp
-                  config={configs[activeTab]}
-                  onChange={cfg => updateConfig(activeTab, cfg)}
-                />
-              )}
+              {FieldsComp && <FieldsComp config={configs[activeTab]} onChange={cfg => updateConfig(activeTab, cfg)} />}
             </div>
           </div>
 
