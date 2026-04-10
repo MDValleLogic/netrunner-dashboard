@@ -22,12 +22,12 @@ async function resolveTenantId(req: NextRequest): Promise<string | null> {
 }
 
 // GET /api/config/device/[device_id] — all overrides for a device, with config_source per runner
-export async function GET(req: NextRequest, { params }: { params: { device_id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ device_id: string }> }) {
   try {
     const tenantId = await resolveTenantId(req);
     if (!tenantId) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-    const { device_id } = params;
+    const { device_id } = await params;
 
     // Verify device belongs to tenant
     const deviceCheck = await sql`
@@ -75,12 +75,12 @@ export async function GET(req: NextRequest, { params }: { params: { device_id: s
 }
 
 // POST /api/config/device/[device_id] — create or update a device override
-export async function POST(req: NextRequest, { params }: { params: { device_id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ device_id: string }> }) {
   try {
     const tenantId = await resolveTenantId(req);
     if (!tenantId) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-    const { device_id } = params;
+    const { device_id } = await params;
 
     const deviceCheck = await sql`
       SELECT device_id FROM devices
@@ -117,12 +117,12 @@ export async function POST(req: NextRequest, { params }: { params: { device_id: 
 }
 
 // DELETE /api/config/device/[device_id]?runner=speedrunner — reset to global
-export async function DELETE(req: NextRequest, { params }: { params: { device_id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ device_id: string }> }) {
   try {
     const tenantId = await resolveTenantId(req);
     if (!tenantId) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-    const { device_id } = params;
+    const { device_id } = await params;
     const runner_type = req.nextUrl.searchParams.get("runner");
 
     if (!runner_type || !RUNNER_TYPES.includes(runner_type)) {

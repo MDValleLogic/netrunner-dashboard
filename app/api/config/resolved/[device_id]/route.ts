@@ -36,7 +36,7 @@ async function resolveIds(req: NextRequest): Promise<{ tenantId: string; deviceI
 
 // GET /api/config/resolved/[device_id]
 // Pi calls this at heartbeat — server resolves global vs device override, Pi gets one clean config per runner
-export async function GET(req: NextRequest, { params }: { params: { device_id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ device_id: string }> }) {
   try {
     const ids = await resolveIds(req);
     if (!ids) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
